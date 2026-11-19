@@ -66,10 +66,13 @@ export function QuoteCard({
     quote,
     index,
     onShare,
+    onGenerateAd,
 }: {
     quote: QuoteCardData;
     index: number;
     onShare: (quote: QuoteCardData) => void;
+    /** Starts the survey flow on this page (see useAdBreak). */
+    onGenerateAd: () => void;
 }) {
     const { site } = usePage().props;
     const [, copy] = useClipboard();
@@ -132,8 +135,8 @@ export function QuoteCard({
                     <motion.button
                         type="button"
                         whileTap={{ scale: 0.96 }}
-                        // Opens the real survey flow; points are awarded only after the provider confirms.
-                        onClick={() => router.visit('/surveys')}
+                        // Opens the survey flow in place; points are awarded only after the provider confirms.
+                        onClick={onGenerateAd}
                         className="inline-flex min-w-[140px] items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_5px_15px_color-mix(in_srgb,var(--color-brand)_20%,transparent)] hover:bg-brand-hover"
                     >
                         <Megaphone className="size-4" /> Generate Ad{' '}

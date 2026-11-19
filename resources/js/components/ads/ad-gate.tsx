@@ -11,20 +11,30 @@ import { useSurveyFlow } from '@/hooks/use-survey-flow';
 import type { GatePurpose } from '@/lib/ads-api';
 
 type Props = {
-    purpose: GatePurpose;
+    /** What the survey unlocks. Leave out for a plain ad break that only earns points. */
+    purpose?: GatePurpose;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     /** Called when the provider has confirmed a completed survey. */
     onUnlocked: () => void;
+    title?: string;
+    description?: string;
 };
 
 /**
- * The reusable "complete a survey first" dialog. It asks the server which provider has something to show,
- * renders that provider's presenter and reports back once the provider has confirmed completion.
+ * The reusable survey dialog. It asks the server which provider has something to show, renders that
+ * provider's presenter and reports back once the provider has confirmed completion.
  *
- * Use it through useAdGate() rather than directly.
+ * Use it through useAdGate() (unlocks an action) or useAdBreak() (earn points, stay on the page).
  */
-export function AdGate({ purpose, open, onOpenChange, onUnlocked }: Props) {
+export function AdGate({
+    purpose,
+    open,
+    onOpenChange,
+    onUnlocked,
+    title = 'Complete a survey to continue',
+    description = 'Finish one survey and we will unlock this for you. Your result is confirmed by the survey provider, which can take a few minutes.',
+}: Props) {
     const flow = useSurveyFlow({
         purpose,
         enabled: open,
@@ -41,12 +51,8 @@ export function AdGate({ purpose, open, onOpenChange, onUnlocked }: Props) {
             >
                 <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
                     <DialogHeader>
-                        <DialogTitle>Complete a survey to continue</DialogTitle>
-                        <DialogDescription>
-                            Finish one survey and we will unlock this for you.
-                            Your result is confirmed by the survey provider,
-                            which can take a few minutes.
-                        </DialogDescription>
+                        <DialogTitle>{title}</DialogTitle>
+                        <DialogDescription>{description}</DialogDescription>
                     </DialogHeader>
                     <Presenter flow={flow} />
                 </DialogContent>

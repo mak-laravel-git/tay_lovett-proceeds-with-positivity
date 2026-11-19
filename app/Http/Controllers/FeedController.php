@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quote;
+use App\Services\Ads\PointLedger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,7 +14,7 @@ class FeedController extends Controller
     /**
      * Show published quotes.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, PointLedger $points): Response
     {
         $savedIds = $request->user()
             ->savedQuotes()
@@ -33,6 +34,10 @@ class FeedController extends Controller
 
         return Inertia::render('feed/index', [
             'quotes' => $quotes,
+            'points' => [
+                'balance' => $points->balanceFor($request->user()),
+                'lifetime_earned' => $points->lifetimeEarnedFor($request->user()),
+            ],
         ]);
     }
 

@@ -10,6 +10,7 @@ use App\Models\AdSetting;
 use App\Models\AiModel;
 use App\Models\AiProviderCredential;
 use App\Models\AiSetting;
+use App\Models\PointBalance;
 use App\Models\Quote;
 use App\Models\QuoteCategory;
 use App\Models\User;
@@ -221,6 +222,20 @@ test('simulated completion runs the real callback pipeline and only in the local
 
 test('the simulate route does not exist outside local development', function () {
     expect(Route::has('dev.ads.simulate'))->toBeFalse();
+});
+
+test('the feed shows the users own points so a finished survey can refresh them in place', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    PointBalance::query()->create(['user_id' => $user->id, 'balance' => 30, 'lifetime_earned' => 55]);
+    PointBalance::query()->create(['user_id' => $other->id, 'balance' => 999, 'lifetime_earned' => 999]);
+
+    $this->actingAs($user)->get(route('feed'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('feed/index')
+            ->where('points.balance', 30)
+            ->where('points.lifetime_earned', 55));
 });
 
 test('profile and earnings show what a survey unlocked', function () {

@@ -1,16 +1,27 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { ArrowRight, Bookmark, PenLine, Sparkle, Wallet } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Reveal } from '@/components/motion/reveal';
 import { QuoteCard, type QuoteCardData } from '@/components/quote-card';
 import { ShareDialog } from '@/components/share-dialog';
-import { Panel } from '@/components/ui-brand';
+import { Panel, Pill } from '@/components/ui-brand';
+import { useAdBreak } from '@/hooks/use-ad-break';
 import { cn } from '@/lib/utils';
 
-export default function FeedIndex({ quotes }: { quotes: QuoteCardData[] }) {
+export default function FeedIndex({
+    quotes,
+    points,
+}: {
+    quotes: QuoteCardData[];
+    points: { balance: number; lifetime_earned: number };
+}) {
     const [category, setCategory] = useState('All');
     const [sharing, setSharing] = useState<QuoteCardData | null>(null);
+    // The survey opens over this page; when it is confirmed the points refresh in place.
+    const adBreak = useAdBreak({
+        onComplete: () => router.reload({ only: ['points'] }),
+    });
 
     const categories = useMemo(
         () => ['All', ...Array.from(new Set(quotes.map((q) => q.category)))],
@@ -120,9 +131,12 @@ export default function FeedIndex({ quotes }: { quotes: QuoteCardData[] }) {
             </Reveal>
 
             <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 pb-3.5 md:px-0.5">
-                <h2 className="text-[17px] font-extrabold md:text-[19px]">
-                    Your inspiration feed
-                </h2>
+                <div className="flex items-center gap-2">
+                    <h2 className="text-[17px] font-extrabold md:text-[19px]">
+                        Your inspiration feed
+                    </h2>
+                    <Pill>{points.balance.toLocaleString()} points</Pill>
+                </div>
                 <div className="flex max-w-full gap-1.5 overflow-x-auto">
                     {categories.map((c) => (
                         <button
@@ -154,8 +168,11 @@ export default function FeedIndex({ quotes }: { quotes: QuoteCardData[] }) {
                     quote={quote}
                     index={index}
                     onShare={setSharing}
+                    onGenerateAd={adBreak.start}
                 />
             ))}
+
+            {adBreak.element}
 
             <ShareDialog quote={sharing} onClose={() => setSharing(null)} />
         </>
