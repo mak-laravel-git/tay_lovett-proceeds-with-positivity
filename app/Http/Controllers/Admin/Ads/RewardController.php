@@ -48,6 +48,7 @@ class RewardController extends Controller
                 'reconciliation_tolerance_usd' => Micros::toDollars($settings->reconciliation_tolerance_micros),
                 'reconciliation_recheck_days' => $settings->reconciliation_recheck_days,
                 'offers_cache_seconds' => $settings->offers_cache_seconds,
+                'gate_quote_generation' => $settings->gate_quote_generation,
             ],
             'timezones' => timezone_identifiers_list(),
         ]);
@@ -117,6 +118,7 @@ class RewardController extends Controller
             'reconciliation_tolerance_usd' => ['required', 'string', 'max:20'],
             'reconciliation_recheck_days' => ['required', 'integer', 'min:0', 'max:14'],
             'offers_cache_seconds' => ['required', 'integer', 'min:30', 'max:3600'],
+            'gate_quote_generation' => ['sometimes', 'boolean'],
         ]);
 
         try {
@@ -131,13 +133,20 @@ class RewardController extends Controller
             throw ValidationException::withMessages(['reconciliation_tolerance_usd' => 'Enter a dollar amount such as 0.01.']);
         }
 
-        AdSetting::current()->update([
+        $settings = AdSetting::current();
+        $settings->fill([
             'settlement_timezone' => $validated['settlement_timezone'],
             'point_usd_value_micros' => $pointValue,
             'reconciliation_tolerance_micros' => $tolerance,
             'reconciliation_recheck_days' => $validated['reconciliation_recheck_days'],
             'offers_cache_seconds' => $validated['offers_cache_seconds'],
         ]);
+
+        if (array_key_exists('gate_quote_generation', $validated)) {
+            $settings->gate_quote_generation = $request->boolean('gate_quote_generation');
+        }
+
+        $settings->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Settings saved.']);
 

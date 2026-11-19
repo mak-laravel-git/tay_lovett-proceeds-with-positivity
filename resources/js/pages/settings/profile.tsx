@@ -10,6 +10,8 @@ import {
     accountButton,
     accountInput,
 } from '@/components/account/account-section';
+import { AdActivitySection } from '@/components/ads/ad-activity-section';
+import type { AdStats } from '@/components/ads/ad-activity-section';
 import { FileUploadAvatar } from '@/components/file-upload-avatar';
 import PasswordInput from '@/components/password-input';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +34,7 @@ type Props = {
     emailCooldown: number;
     expiresInMinutes: number;
     canDelete: boolean;
+    adStats: AdStats;
 };
 
 export default function Profile({
@@ -41,6 +44,7 @@ export default function Profile({
     emailCooldown,
     expiresInMinutes,
     canDelete,
+    adStats,
 }: Props) {
     const { auth } = usePage().props;
 
@@ -58,6 +62,7 @@ export default function Profile({
                 expiresInMinutes={expiresInMinutes}
                 role={auth.is_administrator ? 'Administrator' : 'Member'}
             />
+            <AdActivitySection stats={adStats} />
             {canDelete ? <DeleteSection /> : null}
         </>
     );

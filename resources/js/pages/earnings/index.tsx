@@ -15,6 +15,9 @@ type Activity = {
     status: string;
     points: number;
     reward_status: string;
+    purpose: string | null;
+    used_for: { slug: string; text: string } | null;
+    unspent: boolean;
 };
 
 type Props = {
@@ -133,6 +136,28 @@ export default function Earnings({ points, activities }: Props) {
                                                     : '0 points'}
                                             </span>
                                         </div>
+                                        {activity.used_for ? (
+                                            <p className="text-xs text-muted-foreground">
+                                                Unlocked a quote:{' '}
+                                                <Link
+                                                    href="/studio"
+                                                    className="font-bold text-brand-deep hover:underline"
+                                                >
+                                                    “{activity.used_for.text}”
+                                                </Link>
+                                            </p>
+                                        ) : activity.unspent ? (
+                                            <p className="text-xs text-muted-foreground">
+                                                {activity.purpose} unlocked —
+                                                not used yet.{' '}
+                                                <Link
+                                                    href="/studio"
+                                                    className="font-bold text-brand-deep hover:underline"
+                                                >
+                                                    Create a quote →
+                                                </Link>
+                                            </p>
+                                        ) : null}
                                     </li>
                                 ))}
                             </ul>

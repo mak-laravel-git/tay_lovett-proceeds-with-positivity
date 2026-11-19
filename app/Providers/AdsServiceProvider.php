@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\Ads\AdProviderRegistry;
+use App\Services\Ads\Providers\GoogleAdSense\GoogleAdSenseAdapter;
 use App\Services\Ads\Providers\TapResearch\TapResearchAdapter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class AdsServiceProvider extends ServiceProvider
         $this->app->singleton(AdProviderRegistry::class, function ($app): AdProviderRegistry {
             $registry = new AdProviderRegistry;
             $registry->register($app->make(TapResearchAdapter::class));
+            $registry->register($app->make(GoogleAdSenseAdapter::class));
 
             return $registry;
         });

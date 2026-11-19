@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
+use App\Enums\GatePurpose;
 use App\Enums\RewardStatus;
 use Database\Factories\AdActivityFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -26,13 +27,16 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $survey_returned_at
  * @property Carbon|null $provider_confirmed_at
  * @property Carbon|null $reward_credited_at
+ * @property GatePurpose|null $purpose
+ * @property Carbon|null $consumed_at
+ * @property int|null $consumed_quote_id
  * @property array<string, mixed>|null $callback_payload
  * @property int $publisher_revenue_micros
  * @property int $awarded_points
  */
 #[Fillable([
-    'user_id', 'ad_request_id', 'source', 'provider_key', 'provider_user_id', 'activity_type',
-    'offer_identifier', 'offer_length_minutes', 'offer_category', 'provider_transaction_id',
+    'user_id', 'ad_request_id', 'source', 'provider_key', 'provider_user_id', 'activity_type', 'purpose',
+    'consumed_at', 'consumed_quote_id', 'offer_identifier', 'offer_length_minutes', 'offer_category', 'provider_transaction_id',
     'status', 'reward_status', 'reward_note',
     'survey_loaded_at', 'survey_started_at', 'survey_returned_at', 'provider_confirmed_at', 'reward_credited_at',
     'provider_status', 'survey_outcome', 'payout_type', 'provider_payout_amount', 'payout_currency',
@@ -57,6 +61,8 @@ class AdActivity extends Model
             'status' => ActivityStatus::class,
             'reward_status' => RewardStatus::class,
             'activity_type' => ActivityType::class,
+            'purpose' => GatePurpose::class,
+            'consumed_at' => 'datetime',
             'survey_loaded_at' => 'datetime',
             'survey_started_at' => 'datetime',
             'survey_returned_at' => 'datetime',
@@ -85,6 +91,14 @@ class AdActivity extends Model
     public function request(): BelongsTo
     {
         return $this->belongsTo(AdRequest::class, 'ad_request_id');
+    }
+
+    /**
+     * @return BelongsTo<Quote, $this>
+     */
+    public function consumedQuote(): BelongsTo
+    {
+        return $this->belongsTo(Quote::class, 'consumed_quote_id');
     }
 
     /**

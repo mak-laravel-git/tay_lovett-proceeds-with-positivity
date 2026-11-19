@@ -42,6 +42,18 @@ Updated: 2026-11-02
 - `pnpm run build` — passed
 - Browser at `http://127.0.0.1:8000`: guest `/` opened login; login reached the feed; a normal user received 403 on `/admin`; Generate Ad opened a labeled demo advertisement. A 390px emulation kept the ad inside a narrow column. Not every requested viewport was captured.
 
+## Update 2026-11-19: ad/survey gate on Quote Studio
+
+This supersedes the "Demo advertisements" notes above for Studio. The multi-provider ad system under `app/Services/Ads/` (TapResearch, fallback chain, verified callbacks, point ledger) already existed; this change connects it to quote creation.
+
+- Creating a quote needs one provider-confirmed survey. `POST /studio` spends one unlock (`AdGate::claim`, a single conditional UPDATE) before generating and gives it back if generation fails. One approved survey pays for one quote.
+- `ad_activities` gained `purpose`, `consumed_at` and `consumed_quote_id`. `ad_settings.gate_quote_generation` is a kill switch (Admin > Ads > Rewards): with no provider configured nobody could otherwise create a quote.
+- Reusable front end: `useAdGate('quote_generation')` (`hooks/use-ad-gate.tsx`) wraps any action; providers are presented through `components/ads/providers.ts`. `/surveys` uses the same `useSurveyFlow` hook.
+- Google AdSense is a registered placeholder adapter only: never configured, always skipped by the fallback chain.
+- Local only: `POST /dev/ads/activities/{activity}/simulate` feeds a pre-verified callback through the real `CallbackProcessor` (no revenue recorded). The route is not registered outside `APP_ENV=local`.
+- Profile (`settings/profile`) shows survey stats and `/earnings` shows which quote each survey unlocked.
+- Not verified against a real TapResearch account or in a browser; see the TapResearch open items.
+
 ## Resume
 
 1. Point `CACHE_STORE` and `QUEUE_CONNECTION` at the existing private Redis only after host, auth, TLS, and a free logical database are confirmed. Do not flush it.

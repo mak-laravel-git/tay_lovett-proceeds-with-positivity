@@ -1,6 +1,8 @@
 <?php
 
 use App\Ai\Agents\QuoteAgent;
+use App\Enums\GatePurpose;
+use App\Models\AdActivity;
 use App\Models\AdSession;
 use App\Models\AiBudgetCounter;
 use App\Models\AiModel;
@@ -117,6 +119,8 @@ test('generation is auto-approved and a missing token count still spends the res
 
     $user = User::factory()->create();
     $category = QuoteCategory::factory()->create();
+    // Quote generation is gated behind one completed survey.
+    AdActivity::factory()->for($user)->approved()->create(['purpose' => GatePurpose::QuoteGeneration]);
 
     $this->actingAs($user)->post(route('studio.generate'), [
         'quote_category_id' => $category->id,

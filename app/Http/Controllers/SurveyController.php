@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
+use App\Enums\GatePurpose;
 use App\Enums\RewardStatus;
 use App\Models\AdActivity;
 use App\Models\AdProvider;
@@ -16,6 +17,7 @@ use App\Services\Ads\PointLedger;
 use App\Services\Ads\ProviderIdentities;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -51,6 +53,8 @@ class SurveyController extends Controller
         return response()->json([
             'request_id' => $bundle->request->id,
             'provider' => $bundle->providerKey,
+            // Only true in local development, where the UI offers a button to simulate the provider's confirmation.
+            'simulate' => app()->environment('local'),
             'offers' => array_map(fn ($offer): array => $offer->toPublicArray(), $bundle->offers),
         ]);
     }
@@ -63,6 +67,7 @@ class SurveyController extends Controller
         $validated = $request->validate([
             'request_id' => ['required', 'integer'],
             'offer_identifier' => ['required', 'string', 'max:191'],
+            'purpose' => ['nullable', Rule::enum(GatePurpose::class)],
         ]);
 
         $user = $request->user();
@@ -94,6 +99,7 @@ class SurveyController extends Controller
             'provider_key' => $provider->key,
             'provider_user_id' => $identities->externalIdFor($user, $provider->key),
             'activity_type' => ActivityType::Survey,
+            'purpose' => $validated['purpose'] ?? null,
             'offer_identifier' => $offer->identifier,
             'offer_length_minutes' => $offer->lengthMinutes,
             'offer_category' => $offer->category,

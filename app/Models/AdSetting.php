@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Single-row settings for the ads/survey subsystem (same pattern as AiSetting).
  */
-#[Fillable(['settlement_timezone', 'point_usd_value_micros', 'reconciliation_tolerance_micros', 'reconciliation_recheck_days', 'offers_cache_seconds'])]
+#[Fillable(['settlement_timezone', 'point_usd_value_micros', 'reconciliation_tolerance_micros', 'reconciliation_recheck_days', 'offers_cache_seconds', 'gate_quote_generation'])]
 class AdSetting extends Model
 {
     /**
      * The factory values, identical to the migration defaults.
      *
-     * @return array{settlement_timezone: string, point_usd_value_micros: int|null, reconciliation_tolerance_micros: int, reconciliation_recheck_days: int, offers_cache_seconds: int}
+     * @return array{settlement_timezone: string, point_usd_value_micros: int|null, reconciliation_tolerance_micros: int, reconciliation_recheck_days: int, offers_cache_seconds: int, gate_quote_generation: bool}
      */
     public static function defaults(): array
     {
@@ -24,7 +24,16 @@ class AdSetting extends Model
             'reconciliation_tolerance_micros' => 10000,
             'reconciliation_recheck_days' => 3,
             'offers_cache_seconds' => 120,
+            'gate_quote_generation' => true,
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['gate_quote_generation' => 'boolean'];
     }
 
     public static function current(): self

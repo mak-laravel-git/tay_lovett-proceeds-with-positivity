@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ActivityStatus;
 use App\Models\AdActivity;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
@@ -43,6 +44,7 @@ class WalletController extends Controller
         $user = $request->user();
 
         $activities = AdActivity::query()
+            ->with('consumedQuote:id,slug,text')
             ->where('user_id', $user->id)
             ->where('source', AdActivity::SOURCE_APP)
             ->latest('survey_started_at')
@@ -58,6 +60,15 @@ class WalletController extends Controller
                 'status' => $activity->status->value,
                 'points' => $activity->awarded_points,
                 'reward_status' => $activity->reward_status->value,
+                'purpose' => $activity->purpose?->label(),
+                // What a completed survey paid for: the quote it unlocked, or null while it is still unspent.
+                'used_for' => $activity->consumedQuote === null ? null : [
+                    'slug' => $activity->consumedQuote->slug,
+                    'text' => str($activity->consumedQuote->text)->limit(80)->toString(),
+                ],
+                'unspent' => $activity->purpose !== null
+                    && $activity->status === ActivityStatus::Approved
+                    && $activity->consumed_at === null,
             ]);
 
         return Inertia::render('earnings/index', [

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdController;
+use App\Http\Controllers\AdGateController;
 use App\Http\Controllers\Admin\Ads\ActivityController as AdsActivityController;
 use App\Http\Controllers\Admin\Ads\CallbackLogController as AdsCallbackLogController;
 use App\Http\Controllers\Admin\Ads\OverviewController as AdsOverviewController;
@@ -53,7 +54,13 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::post('ads/{ad}/exit', [AdController::class, 'exit'])->name('ads.exit');
     Route::get('saved', [FeedController::class, 'saved'])->name('saved');
     Route::get('studio', [StudioController::class, 'index'])->name('studio');
-    Route::post('studio', [StudioController::class, 'generate'])->name('studio.generate');
+    Route::post('studio', [StudioController::class, 'generate'])->middleware('throttle:10,1')->name('studio.generate');
+    Route::get('ads/gate/{purpose}', [AdGateController::class, 'show'])->name('ads.gate');
+    // Local development only: a provider cannot reach 127.0.0.1, so a survey is completed through the real
+    // callback pipeline from here. The route does not exist in any other environment.
+    if (app()->environment('local')) {
+        Route::post('dev/ads/activities/{activity}/simulate', [AdGateController::class, 'simulate'])->name('dev.ads.simulate');
+    }
     Route::post('studio/quotes/{quote}/publish', [StudioController::class, 'publish'])->name('studio.quotes.publish');
     Route::get('surveys', [SurveyController::class, 'index'])->name('surveys');
     Route::post('surveys/offers', [SurveyController::class, 'offers'])->middleware('throttle:20,1')->name('surveys.offers');

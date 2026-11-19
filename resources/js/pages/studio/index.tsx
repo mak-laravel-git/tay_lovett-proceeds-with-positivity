@@ -1,4 +1,4 @@
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Copy, Eye, Send, Share2, Sparkle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -17,6 +17,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { useAdGate } from '@/hooks/use-ad-gate';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { cn } from '@/lib/utils';
 
@@ -29,18 +30,27 @@ type StudioQuote = {
     status: 'approved' | 'published';
 };
 
+type GateInfo = { purpose: string; enabled: boolean; available: number };
+
 export default function Studio({
     categories,
     quotes,
+    gate: gateInfo,
 }: {
     categories: Category[];
     quotes: StudioQuote[];
+    gate: GateInfo;
 }) {
     const { site } = usePage().props;
     const [, copy] = useClipboard();
-    const [categoryId, setCategoryId] = useState(
-        categories[0] ? String(categories[0].id) : '',
-    );
+    const form = useForm({
+        quote_category_id: categories[0] ? String(categories[0].id) : '',
+    });
+    const gate = useAdGate('quote_generation');
+    const busy = form.processing || gate.checking;
+    // The server reports these as validation errors, which are not fields of the form.
+    const errors = form.errors as Record<string, string | undefined>;
+    const gateRequired = gateInfo.enabled;
     const [sharing, setSharing] = useState<StudioQuote | null>(null);
 
     return (
@@ -54,80 +64,85 @@ export default function Studio({
             <Reveal>
                 <Panel className="p-4">
                     <p className="text-sm text-muted-foreground">
-                        Generated quotes are approved automatically. Publish
-                        one when you want it on the feed.
+                        Generated quotes are approved automatically. Publish one
+                        when you want it on the feed.
                     </p>
-                    <Form
-                        action="/studio"
-                        method="post"
+                    <form
                         className="mt-5 grid gap-3"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            // One completed survey pays for one quote; the server enforces this too.
+                            void gate.run(() =>
+                                form.post('/studio', { preserveScroll: true }),
+                            );
+                        }}
                     >
-                        {({ processing, errors }) => (
-                            <>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="quote_category_id">
-                                        Inspiration category
-                                    </Label>
-                                    <input
-                                        type="hidden"
-                                        name="quote_category_id"
-                                        value={categoryId}
-                                    />
-                                    <Select
-                                        value={categoryId}
-                                        onValueChange={setCategoryId}
-                                        disabled={
-                                            processing ||
-                                            categories.length === 0
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="quote_category_id"
-                                            className="w-full bg-white"
-                                        >
-                                            <SelectValue placeholder="Select category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {categories.map((category) => (
-                                                <SelectItem
-                                                    key={category.id}
-                                                    value={String(category.id)}
-                                                >
-                                                    {category.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                {errors.generation && (
-                                    <p className="text-sm text-brand-deep">
-                                        {errors.generation}
-                                    </p>
-                                )}
-                                {processing ? (
-                                    <p className="text-sm text-muted-foreground">
-                                        Generating your quote…
-                                    </p>
-                                ) : null}
-                                <Button
-                                    className="h-11 w-fit rounded-[10px] px-5 font-black"
-                                    disabled={
-                                        processing || categories.length === 0
-                                    }
-                                    type="submit"
+                        <div className="grid gap-2">
+                            <Label htmlFor="quote_category_id">
+                                Inspiration category
+                            </Label>
+                            <Select
+                                value={form.data.quote_category_id}
+                                onValueChange={(value) =>
+                                    form.setData('quote_category_id', value)
+                                }
+                                disabled={busy || categories.length === 0}
+                            >
+                                <SelectTrigger
+                                    id="quote_category_id"
+                                    className="w-full bg-white"
                                 >
-                                    {processing ? (
-                                        <Spinner />
-                                    ) : (
-                                        <Sparkle />
-                                    )}
-                                    {processing
-                                        ? 'Generating…'
-                                        : 'Create quote'}
-                                </Button>
-                            </>
+                                    <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categories.map((category) => (
+                                        <SelectItem
+                                            key={category.id}
+                                            value={String(category.id)}
+                                        >
+                                            {category.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {gateRequired ? (
+                            <p className="text-sm text-muted-foreground">
+                                Each quote needs one completed survey.{' '}
+                                {gateInfo.available > 0
+                                    ? `You have ${gateInfo.available} ready to use.`
+                                    : 'You will be asked to complete one when you press the button.'}
+                            </p>
+                        ) : null}
+                        {errors.ad_gate && (
+                            <p className="text-sm text-brand-deep" role="alert">
+                                {errors.ad_gate}
+                            </p>
                         )}
-                    </Form>
+                        {errors.generation && (
+                            <p className="text-sm text-brand-deep" role="alert">
+                                {errors.generation}
+                            </p>
+                        )}
+                        {form.processing ? (
+                            <p className="text-sm text-muted-foreground">
+                                Generating your quote…
+                            </p>
+                        ) : null}
+                        <Button
+                            className="h-11 w-fit rounded-[10px] px-5 font-black"
+                            disabled={busy || categories.length === 0}
+                            type="submit"
+                        >
+                            {busy ? <Spinner /> : <Sparkle />}
+                            {form.processing
+                                ? 'Generating…'
+                                : gate.checking
+                                  ? 'Checking…'
+                                  : 'Create quote'}
+                        </Button>
+                    </form>
+                    {gate.element}
                 </Panel>
             </Reveal>
 
@@ -235,9 +250,9 @@ export default function Studio({
 
             <div className="px-3 min-[761px]:px-0">
                 <Notice>
-                    After reading a quote in the feed, use Generate Ad to open
-                    the full-screen advertisement. No earnings are generated
-                    until a compliant provider is connected.
+                    Creating a quote needs one completed survey. Surveys are
+                    confirmed by the survey provider, never by this page, and
+                    your results are kept on My Earnings and your profile.
                 </Notice>
             </div>
 

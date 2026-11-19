@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\AvatarUpdateRequest;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Services\Ads\UserAdStats;
 use App\Services\Otp\OtpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ class ProfileController extends Controller
     /**
      * Show the account profile page. Administrators and users share it, the layout follows the role.
      */
-    public function edit(Request $request, OtpService $otp): Response
+    public function edit(Request $request, OtpService $otp, UserAdStats $adStats): Response
     {
         $user = $request->user();
         $pending = $request->session()->get(EmailChangeController::SESSION_KEY);
@@ -32,6 +33,7 @@ class ProfileController extends Controller
             'emailCooldown' => is_string($pending) ? $otp->cooldownRemaining($pending, OtpPurpose::EmailChange) : 0,
             'expiresInMinutes' => $otp->expiryMinutes(),
             'canDelete' => ! $user->isAdministrator(),
+            'adStats' => $adStats->for($user),
         ]);
     }
 
