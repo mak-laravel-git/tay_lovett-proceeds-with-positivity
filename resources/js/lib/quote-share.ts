@@ -1,10 +1,15 @@
 /**
- * Public share links always use the quote slug, never the database id.
- * The /q/{slug} page renders the Open Graph tags and image that social
- * networks scrape, so every network below gets the same rich preview.
+ * Public share helpers. Quote links use the slug (never a database id).
+ * Website links use the canonical site origin only — no auth tokens or private routes.
  */
+
 export function quoteUrl(slug: string): string {
     return `${window.location.origin}/q/${slug}`;
+}
+
+/** Canonical public website URL (guest lands on login-first). */
+export function websiteUrl(): string {
+    return `${window.location.origin}/`;
 }
 
 export type ShareNetwork =
@@ -12,7 +17,9 @@ export type ShareNetwork =
     | 'x'
     | 'whatsapp'
     | 'linkedin'
-    | 'telegram';
+    | 'telegram'
+    | 'email'
+    | 'sms';
 
 export function shareTarget(
     network: ShareNetwork,
@@ -21,6 +28,7 @@ export function shareTarget(
 ): string {
     const u = encodeURIComponent(url);
     const t = encodeURIComponent(text);
+    const subject = encodeURIComponent(text);
 
     switch (network) {
         case 'facebook':
@@ -33,5 +41,9 @@ export function shareTarget(
             return `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
         case 'telegram':
             return `https://t.me/share/url?url=${u}&text=${t}`;
+        case 'email':
+            return `mailto:?subject=${subject}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
+        case 'sms':
+            return `sms:?&body=${encodeURIComponent(`${text} ${url}`)}`;
     }
 }

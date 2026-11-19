@@ -50,6 +50,42 @@ class WalletLedger
     }
 
     /**
+     * Credit pending (not withdrawable) balance. Used for sandbox revenue-share allocations that must
+     * never look like settled cash until an explicit confirmation path moves them to available.
+     */
+    public function creditPending(User $user, int $amountCents, string $type, string $idempotencyKey, string $description): LedgerEntry
+    {
+        return $this->once($idempotencyKey, function () use ($user, $amountCents, $type, $idempotencyKey, $description): LedgerEntry {
+            $existing = LedgerEntry::query()->where('idempotency_key', $idempotencyKey)->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            if ($amountCents < 1) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Pending credits must be at least one cent.',
+                ]);
+            }
+
+            $wallet = Wallet::query()->lockForUpdate()->firstOrCreate(
+                ['user_id' => $user->id],
+                ['pending_cents' => 0, 'available_cents' => 0, 'reserved_cents' => 0],
+            );
+
+            $wallet->update(['pending_cents' => $wallet->pending_cents + $amountCents]);
+
+            return LedgerEntry::query()->create([
+                'user_id' => $user->id,
+                'entry_type' => $type,
+                'amount_cents' => $amountCents,
+                'idempotency_key' => $idempotencyKey,
+                'description' => $description,
+            ]);
+        });
+    }
+
+    /**
      * Move available funds into a withdrawal reserve.
      */
     public function reserve(User $user, int $amountCents, string $idempotencyKey): LedgerEntry

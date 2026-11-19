@@ -30,6 +30,7 @@ class CallbackProcessor
 {
     public function __construct(
         private readonly RewardService $rewards,
+        private readonly UserRevenueShare $revenueShare,
         private readonly ProviderIdentities $identities,
     ) {}
 
@@ -106,6 +107,8 @@ class CallbackProcessor
         if ($payload->kind === CallbackPayload::KIND_COMPLETION) {
             $activity->forceFill(['status' => ActivityStatus::Approved])->save();
             $status = $this->rewards->award($activity);
+            // Option B sandbox: floor(1/3) of verified publisher revenue → pending wallet (toggle-gated).
+            $this->revenueShare->allocateIfEnabled($activity);
             $result = $status === RewardStatus::Credited ? CallbackResult::Credited : CallbackResult::NotRewarded;
             $note = $activity->reward_note;
         } else {

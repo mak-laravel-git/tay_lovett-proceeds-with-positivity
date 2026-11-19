@@ -41,6 +41,7 @@ type Props = {
         reconciliation_recheck_days: number;
         offers_cache_seconds: number;
         gate_quote_generation: boolean;
+        user_revenue_share_enabled: boolean;
     };
     timezones: string[];
 };
@@ -274,12 +275,16 @@ function SettingsForm({
         ),
         offers_cache_seconds: String(settings.offers_cache_seconds),
         gate_quote_generation: settings.gate_quote_generation,
+        user_revenue_share_enabled: settings.user_revenue_share_enabled,
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [processing, setProcessing] = useState(false);
 
     const set = (
-        key: Exclude<keyof typeof values, 'gate_quote_generation'>,
+        key: Exclude<
+            keyof typeof values,
+            'gate_quote_generation' | 'user_revenue_share_enabled'
+        >,
         value: string,
     ) =>
         setValues((current) => ({ ...current, [key]: value }));
@@ -383,6 +388,28 @@ function SettingsForm({
                         />
                         Require a survey before each quote (turn off if no
                         provider is configured yet)
+                    </label>
+                </FilterField>
+                <FilterField label="Sandbox user revenue share (Option B)">
+                    <label className="flex items-start gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={values.user_revenue_share_enabled}
+                            onChange={(event) =>
+                                setValues((current) => ({
+                                    ...current,
+                                    user_revenue_share_enabled:
+                                        event.target.checked,
+                                }))
+                            }
+                        />
+                        <span>
+                            Credit floor(1/3) of verified publisher revenue to
+                            the user&apos;s <strong>pending</strong> wallet
+                            (SANDBOX label). Never withdrawable as real cash
+                            from this toggle alone. Default off.
+                        </span>
                     </label>
                 </FilterField>
                 <div className="flex items-end">

@@ -1,6 +1,10 @@
 # Implementation progress
 
-Updated: 2026-11-02
+> **Canonical living docs (from 2026-11-19 context handoff):**  
+> `docs/implementation/IMPLEMENTATION_PROGRESS.md` plus sibling audit files in that folder.  
+> This file retains earlier chronological notes.
+
+Updated: 2026-11-02 (superseded for status by `docs/implementation/` as of 2026-11-19)
 
 ## Decision log
 

@@ -47,3 +47,14 @@ test('a sum of many amounts never drifts the way floats do', function () {
 
     expect($total)->toBe(100_000_000)->and(Micros::toDollars($total))->toBe('100.00');
 });
+
+test('one-third user share floors eligible cents exactly', function (string $revenue, int $userCents) {
+    expect(Micros::oneThirdUserShareCents(Micros::fromDecimal($revenue)))->toBe($userCents);
+})->with([
+    'thirty dollars' => ['30.00', 1000],
+    'one dollar' => ['1.00', 33],
+    'two cents' => ['0.02', 0],
+    'three cents' => ['0.03', 1],
+    'zero' => ['0', 0],
+    'tapresearch sample' => ['1.32', 44],
+]);

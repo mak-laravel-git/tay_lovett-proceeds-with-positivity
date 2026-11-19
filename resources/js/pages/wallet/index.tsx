@@ -40,14 +40,18 @@ export default function WalletPage({ wallet, entries }: WalletProps) {
                     <Metric
                         label="Pending earnings"
                         value={money(wallet.pending_cents)}
-                        note="No provider connected"
+                        note={
+                            wallet.pending_cents > 0
+                                ? 'Sandbox / unsettled — not withdrawable'
+                                : 'No verified pending share yet'
+                        }
                     />
                 </StaggerItem>
                 <StaggerItem className="col-span-2 min-[761px]:col-span-1">
                     <Metric
                         label="Revenue share"
                         value="⅓"
-                        note="Client-specified rate"
+                        note="Sandbox rule when admin enables Option B"
                     />
                 </StaggerItem>
             </Stagger>

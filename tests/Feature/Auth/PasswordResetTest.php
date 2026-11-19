@@ -82,16 +82,16 @@ test('a wrong code gives a generic message that is identical for unknown emails'
     Notification::fake();
     User::factory()->create(['email' => 'known@example.com']);
 
+    $expected = 'That code is not correct or has expired.';
+
     $this->post(route('password.email'), ['email' => 'known@example.com']);
-    $known = $this->post(route('password.code.verify'), ['code' => '000000']);
-    $knownMessage = session('errors')->first('code');
+    $this->post(route('password.code.verify'), ['code' => '000000'])
+        ->assertSessionHasErrors(['code' => $expected]);
 
     $this->flushSession();
     $this->post(route('password.email'), ['email' => 'nobody@example.com']);
-    $this->post(route('password.code.verify'), ['code' => '000000']);
-
-    expect(session('errors')->first('code'))->toBe($knownMessage)
-        ->and($knownMessage)->toBe('That code is not correct or has expired.');
+    $this->post(route('password.code.verify'), ['code' => '000000'])
+        ->assertSessionHasErrors(['code' => $expected]);
 });
 
 test('repeated wrong codes lock the attempt the same way for known and unknown emails', function () {
@@ -108,8 +108,8 @@ test('repeated wrong codes lock the attempt the same way for known and unknown e
             $this->post(route('password.code.verify'), ['code' => '000000']);
         }
 
-        $this->post(route('password.code.verify'), ['code' => '000000'])->assertSessionHasErrors('code');
-        expect(session('errors')->first('code'))->toBe('Too many wrong attempts. Request a new code.');
+        $this->post(route('password.code.verify'), ['code' => '000000'])
+            ->assertSessionHasErrors(['code' => 'Too many wrong attempts. Request a new code.']);
     }
 });
 

@@ -10,12 +10,14 @@ import {
     Megaphone,
     Menu,
     PenLine,
+    Share2,
     ShieldCheck,
     Sparkle,
     UserRound,
     Wallet,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useState } from 'react';
 import { BrandMark } from '@/components/brand-mark';
 import {
     MotionProvider,
@@ -37,6 +39,7 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { UserMenuContent } from '@/components/user-menu-content';
+import { WebsiteShareDialog } from '@/components/website-share-dialog';
 import { cn } from '@/lib/utils';
 
 type UserNavItem = {
@@ -78,6 +81,7 @@ export default function UserLayout({
     const { name, auth } = usePage().props;
     const current = usePage().url;
     const isActive = (href: string) => current.startsWith(href);
+    const [sharingSite, setSharingSite] = useState(false);
 
     return (
         <MotionProvider>
@@ -85,21 +89,32 @@ export default function UserLayout({
                 <header className="sticky top-0 z-20 flex h-[59px] items-center justify-between gap-3.5 border-b-[3px] border-brand bg-ink px-4 text-white md:h-[66px] md:px-8">
                     <BrandMark name={String(name)} />
                     {auth.user && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    className="rounded-full border border-ink-line bg-ink-soft text-sky-light hover:bg-ink-line"
-                                >
-                                    {auth.user.name.split(' ')[0]}
-                                    <ChevronDown />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                                <UserMenuContent user={auth.user} />
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="hidden rounded-full border border-ink-line bg-ink-soft text-sky-light hover:bg-ink-line min-[480px]:inline-flex"
+                                onClick={() => setSharingSite(true)}
+                            >
+                                <Share2 className="size-4" />
+                                Share website
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="rounded-full border border-ink-line bg-ink-soft text-sky-light hover:bg-ink-line"
+                                    >
+                                        {auth.user.name.split(' ')[0]}
+                                        <ChevronDown />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                    <UserMenuContent user={auth.user} />
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     )}
                 </header>
 
@@ -119,6 +134,14 @@ export default function UserLayout({
                                     active={isActive(item.href)}
                                 />
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => setSharingSite(true)}
+                                className="my-0.5 flex w-full items-center gap-3 rounded-xl px-3 py-[13px] text-left text-[15px] leading-[30px] font-bold text-muted-ink transition-colors hover:bg-brand-soft/70"
+                            >
+                                <Share2 className="size-5" />
+                                Share Website
+                            </button>
                         </nav>
                         <div className="mt-4 rounded-2xl bg-gradient-to-br from-ink via-night-warm to-brand-deep p-4 text-white">
                             <b className="flex items-center gap-2 text-sm">
@@ -217,6 +240,14 @@ export default function UserLayout({
                                         {item.title}
                                     </Link>
                                 ))}
+                                <button
+                                    type="button"
+                                    onClick={() => setSharingSite(true)}
+                                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold hover:bg-brand-soft"
+                                >
+                                    <Share2 className="size-4" />
+                                    Share Website
+                                </button>
                                 <Link
                                     href="/settings/profile"
                                     className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold hover:bg-brand-soft"
@@ -235,6 +266,11 @@ export default function UserLayout({
                         </SheetContent>
                     </Sheet>
                 </nav>
+
+                <WebsiteShareDialog
+                    open={sharingSite}
+                    onClose={() => setSharingSite(false)}
+                />
             </div>
         </MotionProvider>
     );

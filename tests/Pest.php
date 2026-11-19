@@ -1,6 +1,8 @@
 <?php
 
+use App\Notifications\OtpCodeNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /*
@@ -44,7 +46,25 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Read the OTP that was emailed for an address. Requires Notification::fake() in the test.
+ */
+function sentOtpCode(string $email): string
 {
-    // ..
+    $code = null;
+
+    Notification::assertSentOnDemand(
+        OtpCodeNotification::class,
+        function (OtpCodeNotification $notification, array $channels, object $notifiable) use ($email, &$code): bool {
+            if (($notifiable->routes['mail'] ?? null) !== $email) {
+                return false;
+            }
+
+            $code = $notification->code;
+
+            return true;
+        },
+    );
+
+    return (string) $code;
 }

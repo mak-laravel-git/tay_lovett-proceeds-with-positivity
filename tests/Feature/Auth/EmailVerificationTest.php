@@ -10,26 +10,6 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 
-function sentOtpCode(string $email): string
-{
-    $code = null;
-
-    Notification::assertSentOnDemand(
-        OtpCodeNotification::class,
-        function (OtpCodeNotification $notification, array $channels, object $notifiable) use ($email, &$code): bool {
-            if (($notifiable->routes['mail'] ?? null) !== $email) {
-                return false;
-            }
-
-            $code = $notification->code;
-
-            return true;
-        },
-    );
-
-    return (string) $code;
-}
-
 test('the verification screen shows a masked email and no code yet', function () {
     $user = User::factory()->unverified()->create(['email' => 'jordan@example.com']);
 

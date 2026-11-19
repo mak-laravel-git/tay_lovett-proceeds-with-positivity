@@ -51,4 +51,29 @@ final class Micros
 
         return ($negative ? '-' : '').$text;
     }
+
+    /**
+     * Truncate micros down to whole USD cents (no rounding up of sub-cent residue).
+     */
+    public static function toCentsFloor(int $micros): int
+    {
+        if ($micros < 0) {
+            return -intdiv(abs($micros), 10_000);
+        }
+
+        return intdiv($micros, 10_000);
+    }
+
+    /**
+     * PROPOSED sandbox Option B rule: exact one-third of eligible cents, floored to the cent.
+     * Platform keeps the remainder. Not a live contractual formula until client confirms.
+     */
+    public static function oneThirdUserShareCents(int $eligibleMicros): int
+    {
+        if ($eligibleMicros <= 0) {
+            return 0;
+        }
+
+        return intdiv(self::toCentsFloor($eligibleMicros), 3);
+    }
 }
