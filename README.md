@@ -1,1 +1,0 @@
-# tay_lovett-proceeds-with-positivity

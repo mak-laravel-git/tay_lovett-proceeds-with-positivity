@@ -1,0 +1,484 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+/* The site is light only. This variant never matches, so shadcn dark: classes stay inert. */
+@custom-variant dark (&:is(.dark *));
+
+/* Brand palette: black, light blue, red. Single source of truth for colors. */
+@theme static {
+    --color-ink: #0a1018;
+    --color-ink-soft: #182c38;
+    --color-ink-line: #243846;
+    --color-sky: #76d8f8;
+    --color-sky-light: #99e5ff;
+    --color-sky-pale: #e7f7ff;
+    --color-sky-wash: #dff6ff;
+    --color-brand: #ed2948;
+    --color-brand-hover: #cf203d;
+    --color-brand-deep: #bb1831;
+    --color-brand-soft: #ffedf0;
+    --color-brand-glow: #ff879c;
+    --color-canvas: #edf7fa;
+    --color-line: #d4e7ed;
+    --color-muted-ink: #526475;
+    --color-night-1: #090e15;
+    --color-night-2: #101b26;
+    --color-night-3: #16394b;
+    --color-night-edge: #345163;
+    --color-paper: #fafafa;
+    --color-hairline: #e5e7eb;
+    --color-slate-ink: #303b48;
+    --color-night-4: #26354b;
+    --color-night-5: #111b2c;
+    --color-night-warm: #232633;
+    --color-wine: #801c31;
+    --color-steel: #437087;
+    --color-mist: #b3ced7;
+    --color-mist-soft: #c0d8e1;
+    --color-mist-dim: #9fb8c6;
+    --color-success: #389c7a;
+}
+
+@theme {
+    --font-sans:
+        'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* `.theme-light` pins light tokens inside a surface that is always white. */
+:root,
+.theme-light {
+    --background: var(--color-canvas);
+    --foreground: var(--color-ink);
+    --card: #ffffff;
+    --card-foreground: var(--color-ink);
+    --popover: #ffffff;
+    --popover-foreground: var(--color-ink);
+    --primary: var(--color-brand);
+    --primary-foreground: #ffffff;
+    --secondary: var(--color-sky-pale);
+    --secondary-foreground: var(--color-ink);
+    --muted: #e7f3f7;
+    --muted-foreground: var(--color-muted-ink);
+    --accent: var(--color-sky-wash);
+    --accent-foreground: var(--color-ink);
+    --destructive: var(--color-brand);
+    --destructive-foreground: #ffffff;
+    --border: var(--color-line);
+    --input: #c7dfe8;
+    --ring: var(--color-sky);
+    --chart-1: oklch(0.646 0.222 41.116);
+    --chart-2: oklch(0.6 0.118 184.704);
+    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-4: oklch(0.828 0.189 84.429);
+    --chart-5: oklch(0.769 0.188 70.08);
+    --radius: 0.625rem;
+    --sidebar: var(--color-ink);
+    --sidebar-foreground: #f5fbff;
+    --sidebar-primary: var(--color-brand);
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: var(--color-ink-soft);
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: var(--color-ink-line);
+    --sidebar-ring: var(--color-sky);
+    --scrollbar-size: 10px;
+    --scrollbar-track: var(--color-canvas);
+    --scrollbar-thumb: var(--color-sky);
+    --scrollbar-thumb-end: var(--color-brand);
+    --scrollbar-thumb-hover: var(--color-brand-hover);
+    --scrollbar-thumb-active: var(--color-ink);
+}
+
+/* Brand gradients (token based) */
+@utility bg-hero {
+    background-image: linear-gradient(
+        108deg,
+        var(--color-ink) 0%,
+        #102736 53%,
+        var(--color-brand) 100%
+    );
+}
+@utility bg-quote-dark {
+    background-image: linear-gradient(
+        128deg,
+        #0b111a 0%,
+        var(--color-night-3) 57%,
+        var(--color-brand) 100%
+    );
+}
+@utility bg-quote-light {
+    background-image: linear-gradient(130deg, #e1f8ff, #b7e9fa 64%, #ffb2bf);
+}
+@utility bg-quote-rose {
+    background-image: linear-gradient(130deg, #110f17, #85273b 62%, #f34860);
+}
+@utility bg-ad {
+    background-image: linear-gradient(
+        120deg,
+        #101822 0%,
+        #21627e 48%,
+        var(--color-brand) 100%
+    );
+}
+@utility bg-logo {
+    background-image: linear-gradient(
+        135deg,
+        #89e4ff 0 43%,
+        var(--color-brand) 44% 100%
+    );
+}
+@utility bg-auth-intro {
+    background-image: linear-gradient(
+        135deg,
+        var(--color-night-1) 0%,
+        #142e40 55%,
+        #b21c39 100%
+    );
+}
+@utility bg-auth-stage {
+    background-image:
+        radial-gradient(circle at 16% 20%, #16506b 0, transparent 36%),
+        radial-gradient(circle at 90% 80%, #ab1937 0, transparent 40%);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scrollbar-thumb-end) var(--scrollbar-track);
+    }
+
+    *::-webkit-scrollbar {
+        width: var(--scrollbar-size);
+        height: var(--scrollbar-size);
+    }
+
+    *::-webkit-scrollbar-track {
+        background: var(--scrollbar-track);
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--color-brand) 18%, transparent);
+    }
+
+    *::-webkit-scrollbar-thumb {
+        background: linear-gradient(
+            180deg,
+            var(--scrollbar-thumb) 0%,
+            var(--scrollbar-thumb-end) 100%
+        );
+        border: 2px solid var(--scrollbar-track);
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--color-brand) 55%, transparent);
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-thumb-hover);
+        box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--color-brand) 80%, transparent);
+    }
+
+    *::-webkit-scrollbar-thumb:active {
+        background: var(--scrollbar-thumb-active);
+    }
+
+    *::-webkit-scrollbar-corner {
+        background: var(--scrollbar-track);
+    }
+}
+
+/* Administrator-written legal pages. Used by the public page, the editor and the preview. */
+.legal-prose {
+    color: var(--color-ink);
+    font-size: 1rem;
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+}
+
+.legal-prose > * + * {
+    margin-top: 1rem;
+}
+
+.legal-prose h1,
+.legal-prose h2,
+.legal-prose h3,
+.legal-prose h4,
+.legal-prose h5,
+.legal-prose h6 {
+    font-weight: 900;
+    line-height: 1.25;
+    margin-top: 1.75rem;
+    scroll-margin-top: 1.5rem;
+}
+
+.legal-prose h1 { font-size: 2rem; }
+.legal-prose h2 { font-size: 1.5rem; }
+.legal-prose h3 { font-size: 1.25rem; }
+.legal-prose h4,
+.legal-prose h5,
+.legal-prose h6 { font-size: 1.05rem; }
+
+.legal-prose a {
+    color: var(--color-brand-deep);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.legal-prose ul,
+.legal-prose ol {
+    padding-left: 1.5rem;
+}
+
+.legal-prose ul { list-style: disc; }
+.legal-prose ol { list-style: decimal; }
+.legal-prose li > p { margin: 0; }
+.legal-prose li + li { margin-top: 0.25rem; }
+
+.legal-prose ul[data-type='taskList'] {
+    list-style: none;
+    padding-left: 0;
+}
+
+.legal-prose li[data-type='taskItem'] {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+
+.legal-prose li[data-type='taskItem'] > label {
+    flex: none;
+    margin-top: 0.35rem;
+}
+
+.legal-prose li[data-type='taskItem'] > label > span {
+    display: grid;
+    place-items: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 2px solid var(--color-ink);
+    border-radius: 0.3rem;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.legal-prose li[data-type='taskItem'][data-checked='true'] > label > span {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+    color: #fff;
+}
+
+.legal-prose li[data-type='taskItem'][data-checked='true'] > label > span::after {
+    content: '✓';
+}
+
+.legal-prose blockquote {
+    border-left: 4px solid var(--color-sky);
+    background: var(--color-sky-wash);
+    border-radius: 0 0.75rem 0.75rem 0;
+    padding: 0.75rem 1rem;
+}
+
+.legal-prose pre {
+    background: var(--color-night-1);
+    color: #e7f7ff;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.875rem;
+}
+
+.legal-prose code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9em;
+}
+
+.legal-prose :not(pre) > code {
+    background: var(--color-sky-pale);
+    border-radius: 0.35rem;
+    padding: 0.1rem 0.35rem;
+}
+
+.legal-prose mark {
+    background: color-mix(in srgb, var(--color-sky) 45%, transparent);
+    border-radius: 0.2rem;
+    padding: 0 0.15rem;
+}
+
+.legal-prose hr {
+    border: 0;
+    border-top: 2px solid var(--color-line);
+    margin: 2rem 0;
+}
+
+.legal-prose img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+}
+
+.legal-prose table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.legal-prose th,
+.legal-prose td {
+    border: 1px solid var(--color-line);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.legal-prose th {
+    background: var(--color-sky-pale);
+    font-weight: 800;
+}
+
+.legal-prose details {
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #fff;
+}
+
+.legal-prose summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.legal-prose details[open] > summary {
+    margin-bottom: 0.5rem;
+}
+
+.legal-prose [data-pwp-toc] {
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-sky-wash);
+    padding: 0.75rem 1rem;
+}
+
+.legal-prose [data-pwp-toc]:empty {
+    display: none;
+}
+
+.legal-prose .legal-toc-title {
+    font-weight: 900;
+    margin: 0 0 0.25rem;
+}
+
+.legal-prose [data-pwp-toc] ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.legal-prose .legal-toc-sub {
+    padding-left: 1rem;
+}
+
+/* Inside the editor the contents block is only a marker, filled in on the public page. */
+.legal-prose .ProseMirror {
+    outline: none;
+    min-height: 22rem;
+}
+
+.legal-prose .ProseMirror [data-pwp-toc]:empty {
+    display: block;
+}
+
+.legal-prose .ProseMirror [data-pwp-toc]:empty::before {
+    content: 'Table of contents (built automatically from your headings)';
+    color: var(--color-muted-ink);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.legal-prose .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: var(--color-muted-ink);
+    float: left;
+    height: 0;
+    pointer-events: none;
+}
+
+.legal-prose .ProseMirror .selectedCell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--color-sky) 30%, transparent);
+    pointer-events: none;
+}
+
+.legal-prose .ProseMirror td,
+.legal-prose .ProseMirror th {
+    position: relative;
+    min-width: 3rem;
+}
+
+@utility scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
