@@ -54,7 +54,40 @@ class AdProviderRegistry
                 'is_enabled' => false,
                 'priority' => ((int) AdProvider::withTrashed()->max('priority')) + 10,
                 'health' => 'unknown',
+                'config' => $this->defaultConfig($key),
             ]);
         }
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function defaultConfig(string $key): ?array
+    {
+        return match ($key) {
+            'wannads' => [
+                'approval_status' => 'unverified',
+                'production_enabled' => false,
+                'reward_cashout_permission' => false,
+                'concurrent_provider_permission' => false,
+                'sandbox_mode' => false,
+                'allowed_callback_ips' => ['3.22.177.178'],
+            ],
+            'theoremreach' => [
+                'approval_status' => 'unverified',
+                'production_enabled' => false,
+                'reward_cashout_permission' => false,
+                'concurrent_provider_permission' => false,
+                'sandbox_mode' => false,
+                'partner_id' => null,
+                'currency_name_plural' => 'Points',
+                'exchange_rate' => null,
+            ],
+            'google_adsense' => [
+                'integration_type' => 'standard_ads',
+                'production_enabled' => false,
+            ],
+            default => null,
+        };
     }
 }

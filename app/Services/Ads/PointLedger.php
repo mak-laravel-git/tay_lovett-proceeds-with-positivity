@@ -63,6 +63,59 @@ class PointLedger
         }
     }
 
+    /**
+     * Compensating debit for a reversed provider reward. Idempotent via a distinct reversal key.
+     * Never drives the balance below zero; remaining liability is left for admin recovery.
+     */
+    public function reverse(User $user, int $points, string $idempotencyKey, string $description, ?AdActivity $activity = null): PointLedgerEntry
+    {
+        $points = abs($points);
+
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return DB::transaction(function () use ($user, $points, $idempotencyKey, $description, $activity): PointLedgerEntry {
+                    $balance = PointBalance::query()->lockForUpdate()->firstOrCreate(
+                        ['user_id' => $user->id],
+                        ['balance' => 0, 'lifetime_earned' => 0],
+                    );
+
+                    $existing = PointLedgerEntry::query()->where('idempotency_key', $idempotencyKey)->first();
+
+                    if ($existing !== null) {
+                        return $existing;
+                    }
+
+                    $debit = min($points, max(0, $balance->balance));
+
+                    $entry = PointLedgerEntry::query()->create([
+                        'user_id' => $user->id,
+                        'activity_id' => $activity?->id,
+                        'entry_type' => PointLedgerEntry::TYPE_REVERSAL,
+                        'points' => -$debit,
+                        'idempotency_key' => $idempotencyKey,
+                        'description' => $description,
+                    ]);
+
+                    $balance->update([
+                        'balance' => $balance->balance - $debit,
+                    ]);
+
+                    return $entry;
+                }, 3);
+            } catch (UniqueConstraintViolationException $exception) {
+                $existing = PointLedgerEntry::query()->where('idempotency_key', $idempotencyKey)->first();
+
+                if ($existing !== null) {
+                    return $existing;
+                }
+
+                if ($attempt >= 2) {
+                    throw $exception;
+                }
+            }
+        }
+    }
+
     public function balanceFor(User $user): int
     {
         return (int) PointBalance::query()->where('user_id', $user->id)->value('balance');

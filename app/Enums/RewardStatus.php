@@ -6,6 +6,7 @@ enum RewardStatus: string
 {
     case Pending = 'pending';
     case Credited = 'credited';
+    case Reversed = 'reversed';
     case NotEligible = 'not_eligible';
 
     public function label(): string
@@ -13,6 +14,7 @@ enum RewardStatus: string
         return match ($this) {
             self::Pending => 'Pending',
             self::Credited => 'Credited',
+            self::Reversed => 'Reversed',
             self::NotEligible => 'Not eligible',
         };
     }

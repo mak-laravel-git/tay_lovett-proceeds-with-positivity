@@ -31,6 +31,7 @@ final readonly class CallbackPayload
         public int $revenueMicros,
         public string $kind,
         public array $sanitized,
+        public bool $isTestEvent = false,
     ) {}
 
     public function isAuthentic(): bool

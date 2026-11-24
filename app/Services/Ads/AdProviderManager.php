@@ -34,6 +34,19 @@ class AdProviderManager
 
     public function requestOffers(User $user, ActivityType $type, string $ip, int $deviceType): OfferBundle
     {
+        return $this->runChain($user, $type, $ip, $deviceType, null);
+    }
+
+    /**
+     * Ask a single enabled provider (user picked a card). Skips the fallback chain.
+     */
+    public function requestOffersFrom(User $user, string $providerKey, ActivityType $type, string $ip, int $deviceType): OfferBundle
+    {
+        return $this->runChain($user, $type, $ip, $deviceType, $providerKey);
+    }
+
+    private function runChain(User $user, ActivityType $type, string $ip, int $deviceType, ?string $onlyKey): OfferBundle
+    {
         $request = AdRequest::query()->create([
             'user_id' => $user->id,
             'activity_type' => $type->value,
@@ -44,12 +57,25 @@ class AdProviderManager
         $winner = null;
         $offers = [];
 
-        foreach (AdProvider::query()->inFallbackOrder()->get() as $provider) {
+        $providers = AdProvider::query()->inFallbackOrder()->get();
+
+        if ($onlyKey !== null) {
+            $providers = $providers->where('key', $onlyKey)->values();
+        }
+
+        foreach ($providers as $provider) {
             $position++;
             $adapter = $this->registry->get($provider->key);
 
             if ($adapter === null) {
                 $this->record($request, $provider->key, 'fetch_offers', OfferResult::failed('not_registered'), $position, CallOutcome::Skipped);
+
+                continue;
+            }
+
+            // Google AdSense is standard ads only — never part of the rewarded survey/offer chain.
+            if ($provider->key === 'google_adsense') {
+                $this->record($request, $provider->key, 'fetch_offers', OfferResult::failed('not_reward_provider'), $position, CallOutcome::Skipped);
 
                 continue;
             }

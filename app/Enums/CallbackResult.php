@@ -10,8 +10,11 @@ enum CallbackResult: string
     case Credited = 'credited';
     case Recorded = 'recorded';
     case Duplicate = 'duplicate';
+    case Reversed = 'reversed';
+    case TestOnly = 'test_only';
     case InvalidSignature = 'invalid_signature';
     case InvalidToken = 'invalid_token';
+    case RejectedIp = 'rejected_ip';
     case UnsuccessfulOutcome = 'unsuccessful_outcome';
     case Unmatched = 'unmatched';
     case NotRewarded = 'not_rewarded';
@@ -23,8 +26,11 @@ enum CallbackResult: string
             self::Credited => 'Credited',
             self::Recorded => 'Recorded',
             self::Duplicate => 'Duplicate',
+            self::Reversed => 'Reversed',
+            self::TestOnly => 'Test only',
             self::InvalidSignature => 'Invalid signature',
             self::InvalidToken => 'Invalid token',
+            self::RejectedIp => 'Rejected IP',
             self::UnsuccessfulOutcome => 'Unsuccessful outcome',
             self::Unmatched => 'Unmatched',
             self::NotRewarded => 'Not rewarded',

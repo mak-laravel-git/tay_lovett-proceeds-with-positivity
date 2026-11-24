@@ -305,14 +305,18 @@ test('registered providers get a disabled row automatically', function () {
 
     $this->actingAs($this->admin)->get(route('admin.ads.providers'))
         ->assertInertia(fn ($page) => $page
-            ->has('providers', 2)
+            ->has('providers', 4)
             ->where('providers.0.key', 'tapresearch')
             ->where('providers.0.is_enabled', false)
             ->where('providers.0.configured', false)
-            // The AdSense placeholder is listed last, disabled, and can never be configured yet.
-            ->where('providers.1.key', 'google_adsense')
+            ->where('providers.1.key', 'wannads')
             ->where('providers.1.is_enabled', false)
-            ->where('providers.1.configured', false));
+            ->where('providers.2.key', 'theoremreach')
+            ->where('providers.2.is_enabled', false)
+            // The AdSense placeholder is listed last, disabled, and can never be configured yet.
+            ->where('providers.3.key', 'google_adsense')
+            ->where('providers.3.is_enabled', false)
+            ->where('providers.3.configured', false));
 });
 
 test('credentials are write-only: a blank field keeps the stored value, a filled one replaces it', function () {

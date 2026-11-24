@@ -45,15 +45,35 @@ class ProviderController extends Controller
                     'registered' => $adapter !== null,
                     'configured' => $adapter !== null && $adapter->isConfigured($provider),
                     'supports_reconciliation' => $adapter instanceof ReconcilesRevenue,
+                    'integration_type' => match ($provider->key) {
+                        'google_adsense' => 'standard_ads',
+                        'wannads' => 'offerwall',
+                        'theoremreach' => 'rewarded_survey_offerwall',
+                        default => 'rewarded_survey',
+                    },
                     'hints' => [
                         'api_token' => $provider->hint('api_token'),
                         'api_secret' => $provider->hint('api_secret'),
                         'reporting_access_token' => $provider->hint('reporting_access_token'),
                     ],
+                    'compliance' => [
+                        'approval_status' => $provider->configValue('approval_status', 'unverified'),
+                        'production_enabled' => (bool) $provider->configValue('production_enabled', false),
+                        'reward_cashout_permission' => (bool) $provider->configValue('reward_cashout_permission', false),
+                        'concurrent_provider_permission' => (bool) $provider->configValue('concurrent_provider_permission', false),
+                        'sandbox_mode' => (bool) $provider->configValue('sandbox_mode', false),
+                        'partner_id' => $provider->configValue('partner_id'),
+                        'currency_name_plural' => $provider->configValue('currency_name_plural'),
+                        'exchange_rate' => $provider->configValue('exchange_rate'),
+                        'notes' => $provider->configValue('notes'),
+                    ],
                     'last_tested_at' => $provider->last_tested_at?->toIso8601String(),
                     'last_success_at' => $provider->last_success_at?->toIso8601String(),
                     'last_error_category' => $provider->last_error_category,
                     'callback_url' => url("/api/webhooks/{$provider->key}/reward"),
+                    'events_url' => $provider->key === 'theoremreach'
+                        ? url('/api/webhooks/theoremreach/events')
+                        : null,
                     'return_url' => url("/surveys/return/{$provider->key}"),
                 ];
             })->all(),
@@ -83,6 +103,15 @@ class ProviderController extends Controller
             'api_token' => ['nullable', 'string', 'max:255'],
             'api_secret' => ['nullable', 'string', 'max:255'],
             'reporting_access_token' => ['nullable', 'string', 'max:255'],
+            'approval_status' => ['nullable', 'string', 'max:64'],
+            'production_enabled' => ['sometimes', 'boolean'],
+            'reward_cashout_permission' => ['sometimes', 'boolean'],
+            'concurrent_provider_permission' => ['sometimes', 'boolean'],
+            'sandbox_mode' => ['sometimes', 'boolean'],
+            'partner_id' => ['nullable', 'string', 'max:191'],
+            'currency_name_plural' => ['nullable', 'string', 'max:64'],
+            'exchange_rate' => ['nullable', 'string', 'max:32'],
+            'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $settings = $provider->settings ?? [];
@@ -97,6 +126,32 @@ class ProviderController extends Controller
 
         $provider->settings = $settings;
 
+        $config = $provider->config ?? [];
+        foreach ([
+            'approval_status',
+            'partner_id',
+            'currency_name_plural',
+            'exchange_rate',
+            'notes',
+        ] as $field) {
+            if (array_key_exists($field, $validated) && $validated[$field] !== null) {
+                $config[$field] = $validated[$field];
+                $changed[] = $field;
+            }
+        }
+        foreach ([
+            'production_enabled',
+            'reward_cashout_permission',
+            'concurrent_provider_permission',
+            'sandbox_mode',
+        ] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $config[$field] = $request->boolean($field);
+                $changed[] = $field;
+            }
+        }
+        $provider->config = $config;
+
         if (array_key_exists('priority', $validated) && $validated['priority'] !== $provider->priority) {
             $provider->priority = $validated['priority'];
             $changed[] = 'priority';
@@ -109,7 +164,20 @@ class ProviderController extends Controller
             // Enabling is judged on the credentials as they will be after this request is saved.
             if ($enable && ($adapter === null || ! $adapter->isConfigured($provider))) {
                 throw ValidationException::withMessages([
-                    'is_enabled' => 'Add the API token and signing secret before enabling this provider.',
+                    'is_enabled' => 'Add the required credentials and product settings before enabling this provider.',
+                ]);
+            }
+
+            // Hard gate: TheoremReach production_enabled requires coexistence permission (or sandbox).
+            if (
+                $enable
+                && $provider->key === 'theoremreach'
+                && ($config['production_enabled'] ?? false) === true
+                && ($config['concurrent_provider_permission'] ?? false) !== true
+                && ($config['sandbox_mode'] ?? false) !== true
+            ) {
+                throw ValidationException::withMessages([
+                    'is_enabled' => 'TheoremReach production requires recorded concurrent-provider permission (or sandbox mode).',
                 ]);
             }
 

@@ -9,11 +9,13 @@ namespace App\Enums;
 enum ActivityType: string
 {
     case Survey = 'survey';
+    case Offerwall = 'offerwall';
 
     public function label(): string
     {
         return match ($this) {
             self::Survey => 'Survey',
+            self::Offerwall => 'Offerwall',
         };
     }
 

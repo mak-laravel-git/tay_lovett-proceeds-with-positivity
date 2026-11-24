@@ -13,6 +13,7 @@ enum ActivityStatus: string
     case Returned = 'returned';
     case Approved = 'approved';
     case Rejected = 'rejected';
+    case Reversed = 'reversed';
     case Failed = 'failed';
     case Expired = 'expired';
 
@@ -24,6 +25,7 @@ enum ActivityStatus: string
             self::Returned => 'Returned',
             self::Approved => 'Approved',
             self::Rejected => 'Rejected',
+            self::Reversed => 'Reversed',
             self::Failed => 'Failed',
             self::Expired => 'Expired',
         };

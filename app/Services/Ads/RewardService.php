@@ -2,6 +2,7 @@
 
 namespace App\Services\Ads;
 
+use App\Enums\ActivityStatus;
 use App\Enums\RewardStatus;
 use App\Models\AdActivity;
 use App\Models\User;
@@ -60,6 +61,37 @@ class RewardService
     public function decline(AdActivity $activity, string $note): RewardStatus
     {
         return $this->mark($activity, RewardStatus::NotEligible, $note);
+    }
+
+    /**
+     * Reverse a previously credited reward exactly once. Safe under callback retries.
+     */
+    public function reverse(AdActivity $activity, string $note = 'provider_reversal'): RewardStatus
+    {
+        if ($activity->reward_status === RewardStatus::Reversed) {
+            return RewardStatus::Reversed;
+        }
+
+        $user = $activity->user_id === null ? null : User::query()->find($activity->user_id);
+        $points = (int) ($activity->awarded_points ?? 0);
+
+        if ($user !== null && $points > 0 && $activity->provider_transaction_id !== null) {
+            $this->ledger->reverse(
+                $user,
+                $points,
+                "reversal:{$activity->provider_key}:{$activity->provider_transaction_id}",
+                'Provider reversal',
+                $activity,
+            );
+        }
+
+        $activity->forceFill([
+            'status' => ActivityStatus::Reversed,
+            'reward_status' => RewardStatus::Reversed,
+            'reward_note' => $note,
+        ])->save();
+
+        return RewardStatus::Reversed;
     }
 
     private function mark(AdActivity $activity, RewardStatus $status, string $note): RewardStatus

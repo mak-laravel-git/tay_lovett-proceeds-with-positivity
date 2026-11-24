@@ -3,6 +3,7 @@
 namespace App\Services\Ads;
 
 use App\Models\AdActivity;
+use App\Models\AdProvider;
 use App\Models\AdSetting;
 use App\Models\LedgerEntry;
 use App\Models\User;
@@ -19,7 +20,10 @@ class UserRevenueShare
 {
     public const ENTRY_TYPE = 'sandbox_revenue_share';
 
-    public function __construct(private readonly WalletLedger $wallet) {}
+    public function __construct(
+        private readonly WalletLedger $wallet,
+        private readonly ProviderComplianceGate $compliance,
+    ) {}
 
     public function allocateIfEnabled(AdActivity $activity): ?LedgerEntry
     {
@@ -32,6 +36,12 @@ class UserRevenueShare
         }
 
         if ($activity->publisher_revenue_micros < 1) {
+            return null;
+        }
+
+        // GATE C2: do not create even pending cash-share without recorded cashout permission for that provider.
+        $provider = AdProvider::query()->where('key', $activity->provider_key)->first();
+        if ($provider === null || ! $this->compliance->allowsCashout($provider)) {
             return null;
         }
 
