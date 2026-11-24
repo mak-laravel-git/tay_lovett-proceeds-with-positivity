@@ -23,6 +23,8 @@ export type SurveyFlowOptions = {
     purpose?: GatePurpose;
     /** Load and keep refreshing only while true (a dialog passes its open state here). */
     enabled?: boolean;
+    /** When set, ask only this provider instead of running the fallback chain. */
+    providerKey?: string;
     /** Called once the provider has confirmed a completed survey. */
     onApproved?: (status: ActivityStatusResponse) => void;
 };
@@ -41,6 +43,7 @@ export type SurveyFlow = ReturnType<typeof useSurveyFlow>;
 export function useSurveyFlow({
     purpose,
     enabled = true,
+    providerKey,
     onApproved,
 }: SurveyFlowOptions = {}) {
     const [list, setList] = useState<OffersResponse | null>(null);
@@ -62,7 +65,7 @@ export function useSurveyFlow({
         setError(null);
 
         try {
-            setList(await fetchOffers());
+            setList(await fetchOffers(providerKey));
         } catch (caught) {
             setError(
                 caught instanceof Error
@@ -72,7 +75,7 @@ export function useSurveyFlow({
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [providerKey]);
 
     useEffect(() => {
         if (!enabled) {

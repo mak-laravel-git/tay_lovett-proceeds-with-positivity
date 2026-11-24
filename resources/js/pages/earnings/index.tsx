@@ -31,6 +31,7 @@ const statusLabel: Record<string, string> = {
     returned: 'Waiting for confirmation',
     approved: 'Completed',
     rejected: 'Not completed',
+    reversed: 'Reversed',
     failed: 'Failed',
     expired: 'Expired',
 };
@@ -38,14 +39,42 @@ const statusLabel: Record<string, string> = {
 const rewardLabel: Record<string, string> = {
     pending: 'Pending',
     credited: 'Credited',
+    reversed: 'Reversed',
     not_eligible: 'No points',
 };
 
-export default function Earnings({ points, activities }: Props) {
+const providerLabel: Record<string, string> = {
+    tapresearch: 'TapResearch',
+    wannads: 'Wannads',
+    theoremreach: 'TheoremReach',
+};
+
+export default function Earnings({
+    points,
+    activities,
+    filters = { provider: null },
+    provider_options = [
+        { value: '', label: 'All' },
+        { value: 'tapresearch', label: 'TapResearch' },
+        { value: 'wannads', label: 'Wannads' },
+        { value: 'theoremreach', label: 'TheoremReach' },
+    ],
+}: Props & {
+    filters?: { provider: string | null };
+    provider_options?: { value: string; label: string }[];
+}) {
     const go = (url: string | null) => {
         if (url) {
             router.get(url, {}, { preserveScroll: true, preserveState: true });
         }
+    };
+
+    const setProvider = (provider: string) => {
+        router.get(
+            '/earnings',
+            provider ? { provider } : {},
+            { preserveScroll: true, preserveState: true },
+        );
     };
 
     return (
@@ -70,22 +99,43 @@ export default function Earnings({ points, activities }: Props) {
 
             <div className="px-3 pt-3 min-[761px]:px-0">
                 <Notice>
-                    Points are added only after the survey provider confirms a
-                    completed survey. This is your own history; it shows no
-                    estimate of money.
+                    Points are added only after the selected provider confirms a
+                    completed activity. This is your own history; it shows no
+                    estimate of money. AdSense is not an earning source.
                 </Notice>
             </div>
 
             <Reveal>
                 <Panel className="mt-3 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                        <h2 className="font-bold">My survey history</h2>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="font-bold">My earning history</h2>
                         <Link
                             href="/surveys"
                             className="text-sm font-extrabold text-brand-deep hover:underline"
                         >
-                            Find surveys →
+                            Earn Rewards →
                         </Link>
+                    </div>
+
+                    <div
+                        className="mb-3 flex flex-wrap gap-2"
+                        role="group"
+                        aria-label="Filter by provider"
+                    >
+                        {provider_options.map((option) => {
+                            const active =
+                                (filters.provider ?? '') === option.value;
+                            return (
+                                <Button
+                                    key={option.value || 'all'}
+                                    size="sm"
+                                    variant={active ? 'default' : 'outline'}
+                                    onClick={() => setProvider(option.value)}
+                                >
+                                    {option.label}
+                                </Button>
+                            );
+                        })}
                     </div>
 
                     {activities.data.length === 0 ? (
@@ -102,7 +152,10 @@ export default function Earnings({ points, activities }: Props) {
                                     >
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <b>
-                                                Survey {activity.survey ?? '—'}
+                                                {providerLabel[
+                                                    activity.provider
+                                                ] ?? activity.provider}{' '}
+                                                · {activity.survey ?? '—'}
                                             </b>
                                             <div className="flex items-center gap-2">
                                                 <Pill>

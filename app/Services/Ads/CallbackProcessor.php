@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  * a transaction, record its revenue or award points:
  *
  *   authenticate -> log -> de-duplicate by the provider's transaction id -> match the activity ->
- *   record revenue/payout separately -> approve or reject -> apply the configured reward
+ *   record revenue/payout separately -> approve, reject, reverse, or quarantine test events
  *
  * Every callback ends up in `provider_callbacks`, valid or not. Retries and concurrent duplicates are safe:
  * the unique provider transaction id (and the unique ledger key) make a second pass a no-op.
@@ -32,10 +32,17 @@ class CallbackProcessor
         private readonly RewardService $rewards,
         private readonly UserRevenueShare $revenueShare,
         private readonly ProviderIdentities $identities,
+        private readonly ProviderComplianceGate $compliance,
     ) {}
 
     public function handle(AdProvider $provider, AdProviderAdapter $adapter, Request $request): ProcessedCallback
     {
+        if (! $this->compliance->ipAllowed($provider, $request->ip())) {
+            $this->log($provider, $request, null, CallbackResult::RejectedIp, false, 'callback_ip_not_allowed');
+
+            return new ProcessedCallback(403, CallbackResult::RejectedIp);
+        }
+
         $payload = $adapter->parseCallback($provider, $request);
 
         if ($payload === null) {
@@ -86,9 +93,14 @@ class CallbackProcessor
             ->first();
 
         if ($existing !== null) {
-            $this->log($provider, $request, $payload, CallbackResult::Duplicate, true, 'already_processed', $existing);
+            return $this->handleExisting($provider, $request, $payload, $existing);
+        }
 
-            return new ProcessedCallback(200, CallbackResult::Duplicate, $existing->id);
+        if ($payload->isTestEvent) {
+            $activity = $this->createOrphan($provider, $payload, testOnly: true);
+            $this->log($provider, $request, $payload, CallbackResult::TestOnly, true, 'debug_or_test_event', $activity);
+
+            return new ProcessedCallback(200, CallbackResult::TestOnly, $activity->id);
         }
 
         $resolvesActivity = $payload->kind !== CallbackPayload::KIND_OTHER;
@@ -96,7 +108,28 @@ class CallbackProcessor
 
         if ($activity === null) {
             $activity = $this->createOrphan($provider, $payload);
-            $result = $resolvesActivity ? CallbackResult::Unmatched : CallbackResult::Recorded;
+
+            // Wannads / TheoremReach often settle without a prior matched start. TapResearch keeps unmatched
+            // completions as non-rewarding orphans so a wrong activity_id cannot pay.
+            if (
+                in_array($provider->key, ['wannads', 'theoremreach'], true)
+                && $payload->kind === CallbackPayload::KIND_COMPLETION
+                && $activity->user_id !== null
+            ) {
+                $activity->forceFill(['status' => ActivityStatus::Approved])->save();
+                $status = $this->rewards->award($activity);
+                $this->revenueShare->allocateIfEnabled($activity);
+                $result = $status === RewardStatus::Credited ? CallbackResult::Credited : CallbackResult::NotRewarded;
+                $this->log($provider, $request, $payload, $result, true, $activity->reward_note ?? $unmatchedNote, $activity);
+
+                return new ProcessedCallback(200, $result, $activity->id);
+            }
+
+            $result = match ($payload->kind) {
+                CallbackPayload::KIND_REJECTED => CallbackResult::UnsuccessfulOutcome,
+                CallbackPayload::KIND_OTHER => CallbackResult::Recorded,
+                default => CallbackResult::Unmatched,
+            };
             $this->log($provider, $request, $payload, $result, true, $unmatchedNote, $activity);
 
             return new ProcessedCallback(200, $result, $activity->id);
@@ -121,6 +154,45 @@ class CallbackProcessor
         $this->log($provider, $request, $payload, $result, true, $note, $activity);
 
         return new ProcessedCallback(200, $result, $activity->id);
+    }
+
+    private function handleExisting(
+        AdProvider $provider,
+        Request $request,
+        CallbackPayload $payload,
+        AdActivity $existing,
+    ): ProcessedCallback {
+        // Same transaction_id with a rejection after credit → one compensating reversal.
+        if ($payload->kind === CallbackPayload::KIND_REJECTED) {
+            if ($existing->status === ActivityStatus::Reversed || $existing->reward_status === RewardStatus::Reversed) {
+                $this->log($provider, $request, $payload, CallbackResult::Duplicate, true, 'already_reversed', $existing);
+
+                return new ProcessedCallback(200, CallbackResult::Duplicate, $existing->id);
+            }
+
+            if ($existing->status === ActivityStatus::Approved || $existing->reward_status === RewardStatus::Credited) {
+                $this->rewards->reverse($existing, 'provider_rejected');
+                $this->log($provider, $request, $payload, CallbackResult::Reversed, true, 'provider_rejected', $existing);
+
+                return new ProcessedCallback(200, CallbackResult::Reversed, $existing->id);
+            }
+
+            // Rejection arrived first (or activity already rejected): acknowledge, never credit later.
+            $this->log($provider, $request, $payload, CallbackResult::Duplicate, true, 'already_rejected', $existing);
+
+            return new ProcessedCallback(200, CallbackResult::Duplicate, $existing->id);
+        }
+
+        // A later credit for a transaction already marked rejected/reversed must not pay.
+        if (in_array($existing->status, [ActivityStatus::Rejected, ActivityStatus::Reversed], true)) {
+            $this->log($provider, $request, $payload, CallbackResult::Duplicate, true, 'blocked_by_prior_rejection', $existing);
+
+            return new ProcessedCallback(200, CallbackResult::Duplicate, $existing->id);
+        }
+
+        $this->log($provider, $request, $payload, CallbackResult::Duplicate, true, 'already_processed', $existing);
+
+        return new ProcessedCallback(200, CallbackResult::Duplicate, $existing->id);
     }
 
     /**
@@ -176,27 +248,37 @@ class CallbackProcessor
 
     /**
      * A signed callback we could not attach to a started survey (or that is not a survey payout) still happened
-     * and still carries revenue, so it is stored as its own transaction. It never earns points.
+     * and still carries revenue, so it is stored as its own transaction. It never earns points unless it is a
+     * completion that later matching rules allow — orphans stay not-eligible.
      */
-    private function createOrphan(AdProvider $provider, CallbackPayload $payload): AdActivity
+    private function createOrphan(AdProvider $provider, CallbackPayload $payload, bool $testOnly = false): AdActivity
     {
         $userId = $payload->externalUserId === null
             ? null
             : $this->identities->userIdFor($provider->key, $payload->externalUserId);
 
-        $approved = $payload->kind === CallbackPayload::KIND_COMPLETION;
+        $approved = ! $testOnly && $payload->kind === CallbackPayload::KIND_COMPLETION;
         $rejected = $payload->kind === CallbackPayload::KIND_REJECTED;
+
+        $activityType = $provider->key === 'wannads'
+            ? ActivityType::Offerwall
+            : ActivityType::Survey;
+
+        // Known-user Wannads/TheoremReach completions are awarded by the caller after create; leave Pending so award() can run.
+        $willAward = $approved && $userId !== null && ! $testOnly && in_array($provider->key, ['wannads', 'theoremreach'], true);
 
         $activity = new AdActivity([
             'user_id' => $userId,
             'source' => AdActivity::SOURCE_POSTBACK_ONLY,
             'provider_key' => $provider->key,
             'provider_user_id' => $payload->externalUserId,
-            'activity_type' => ActivityType::Survey->value,
+            'activity_type' => $activityType->value,
             'offer_identifier' => $payload->offerIdentifier,
             'status' => $approved ? ActivityStatus::Approved : ($rejected ? ActivityStatus::Rejected : ActivityStatus::Approved),
-            'reward_status' => RewardStatus::NotEligible,
-            'reward_note' => $payload->kind === CallbackPayload::KIND_OTHER ? 'not_a_survey_payout' : 'unmatched_activity',
+            'reward_status' => $willAward ? RewardStatus::Pending : RewardStatus::NotEligible,
+            'reward_note' => $testOnly
+                ? 'test_or_debug_event'
+                : ($willAward ? null : ($payload->kind === CallbackPayload::KIND_OTHER ? 'not_a_survey_payout' : 'unmatched_activity')),
         ]);
 
         $this->applyConfirmation($activity, $payload);
@@ -217,9 +299,9 @@ class CallbackProcessor
             'payout_type' => $payload->payoutType,
             'provider_payout_amount' => $payload->payoutAmount,
             'payout_currency' => $payload->payoutCurrency,
-            'publisher_revenue_micros' => $payload->revenueMicros,
+            'publisher_revenue_micros' => $payload->isTestEvent ? 0 : $payload->revenueMicros,
             'currency' => 'USD',
-            'callback_verification_status' => 'verified',
+            'callback_verification_status' => $payload->isTestEvent ? 'test' : 'verified',
             'callback_payload' => $payload->sanitized,
         ]);
 
@@ -244,8 +326,8 @@ class CallbackProcessor
             'signature_valid' => $signatureValid,
             'result' => $result,
             'note' => $note,
-            // Revenue from an unauthenticated request is never counted.
-            'revenue_micros' => $signatureValid && $payload !== null ? $payload->revenueMicros : 0,
+            // Revenue from an unauthenticated or test request is never counted.
+            'revenue_micros' => $signatureValid && $payload !== null && ! $payload->isTestEvent ? $payload->revenueMicros : 0,
             'payload' => $payload?->sanitized,
             'ip' => $request->ip(),
             'received_at' => now(),

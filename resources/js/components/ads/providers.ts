@@ -9,6 +9,8 @@ import type { PresenterProps } from '@/components/ads/survey-presenter';
  */
 const presenters: Record<string, ComponentType<PresenterProps>> = {
     tapresearch: SurveyPresenter,
+    wannads: SurveyPresenter,
+    theoremreach: SurveyPresenter,
     google_adsense: GoogleAdSensePresenter,
 };
 

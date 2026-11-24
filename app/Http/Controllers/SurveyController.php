@@ -14,6 +14,7 @@ use App\Services\Ads\AdProviderRegistry;
 use App\Services\Ads\Contracts\HandlesReturn;
 use App\Services\Ads\Data\OfferRequest;
 use App\Services\Ads\PointLedger;
+use App\Services\Ads\ProviderComplianceGate;
 use App\Services\Ads\ProviderIdentities;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,33 +23,83 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The user-facing survey flow. Surveys are listed natively in our own UI (from the provider API) and opened in
- * an in-app frame; this controller never approves a survey or awards points. Those happen only in the
- * verified provider callback.
+ * The user-facing survey / offer flow. Rewarded providers are listed as cards; offers open in
+ * an in-app frame or new tab. This controller never approves a survey or awards points — only the
+ * verified provider callback does.
  */
 class SurveyController extends Controller
 {
-    public function index(Request $request, PointLedger $points): Response
+    public function index(Request $request, PointLedger $points, AdProviderRegistry $registry, ProviderComplianceGate $compliance): Response
     {
+        $registry->ensureRows();
+
+        $rewarded = ['tapresearch', 'wannads', 'theoremreach'];
+
+        $providers = AdProvider::query()
+            ->whereIn('key', $rewarded)
+            ->orderBy('priority')
+            ->get()
+            ->map(function (AdProvider $provider) use ($registry, $compliance): array {
+                $adapter = $registry->get($provider->key);
+                $configured = $adapter !== null && $adapter->isConfigured($provider);
+                $state = $compliance->launchState($provider, $configured);
+
+                return [
+                    'key' => $provider->key,
+                    'label' => $provider->label,
+                    'integration_type' => match ($provider->key) {
+                        'wannads' => 'offerwall',
+                        'theoremreach' => 'rewarded_survey_offerwall',
+                        default => 'rewarded_survey',
+                    },
+                    'status' => $state['status'],
+                    'status_label' => $state['label'],
+                    'can_launch' => $state['can_launch'],
+                    'cta' => match ($provider->key) {
+                        'wannads' => 'Explore Offers',
+                        'theoremreach' => 'Take Surveys',
+                        default => 'Open Surveys',
+                    },
+                ];
+            })
+            ->values()
+            ->all();
+
         return Inertia::render('surveys/index', [
             'points' => [
                 'balance' => $points->balanceFor($request->user()),
                 'lifetime_earned' => $points->lifetimeEarnedFor($request->user()),
             ],
+            'providers' => $providers,
         ]);
     }
 
     /**
-     * Run the provider fallback chain and return the surveys to show. The entry URLs stay on the server.
+     * Run the provider fallback chain (or a single selected provider) and return the surveys/offers to show.
+     * The entry URLs stay on the server.
      */
     public function offers(Request $request, AdProviderManager $manager): JsonResponse
     {
-        $bundle = $manager->requestOffers(
-            $request->user(),
-            ActivityType::Survey,
-            (string) $request->ip(),
-            $this->deviceType((string) $request->userAgent()),
-        );
+        $validated = $request->validate([
+            'provider' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $providerKey = $validated['provider'] ?? null;
+
+        $bundle = $providerKey
+            ? $manager->requestOffersFrom(
+                $request->user(),
+                $providerKey,
+                $providerKey === 'wannads' ? ActivityType::Offerwall : ActivityType::Survey,
+                (string) $request->ip(),
+                $this->deviceType((string) $request->userAgent()),
+            )
+            : $manager->requestOffers(
+                $request->user(),
+                ActivityType::Survey,
+                (string) $request->ip(),
+                $this->deviceType((string) $request->userAgent()),
+            );
 
         return response()->json([
             'request_id' => $bundle->request->id,
@@ -62,7 +113,7 @@ class SurveyController extends Controller
     /**
      * The user opened a survey: record the attempt as its own transaction and hand back the entry URL.
      */
-    public function start(Request $request, AdProviderManager $manager, AdProviderRegistry $registry, ProviderIdentities $identities): JsonResponse
+    public function start(Request $request, AdProviderManager $manager, AdProviderRegistry $registry, ProviderIdentities $identities, ProviderComplianceGate $compliance): JsonResponse
     {
         $validated = $request->validate([
             'request_id' => ['required', 'integer'],
@@ -86,11 +137,21 @@ class SurveyController extends Controller
             return response()->json(['message' => 'This survey list is no longer available. Refresh to see current surveys.'], 410);
         }
 
+        // Server-side gate: UI can_launch is not enough (direct/start after disable must fail).
+        $state = $compliance->launchState($provider, $adapter->isConfigured($provider));
+        if (! $state['can_launch'] || ! $provider->is_enabled) {
+            return response()->json([
+                'message' => $state['label'] ?: 'This provider is not available right now.',
+            ], 403);
+        }
+
         $offer = $manager->findOffer($adRequest, $validated['offer_identifier']);
 
         if ($offer === null) {
             return response()->json(['message' => 'That survey is no longer available. Refresh to see current surveys.'], 410);
         }
+
+        $activityType = $provider->key === 'wannads' ? ActivityType::Offerwall : ActivityType::Survey;
 
         $activity = AdActivity::query()->create([
             'user_id' => $user->id,
@@ -98,7 +159,7 @@ class SurveyController extends Controller
             'source' => AdActivity::SOURCE_APP,
             'provider_key' => $provider->key,
             'provider_user_id' => $identities->externalIdFor($user, $provider->key),
-            'activity_type' => ActivityType::Survey,
+            'activity_type' => $activityType,
             'purpose' => $validated['purpose'] ?? null,
             'offer_identifier' => $offer->identifier,
             'offer_length_minutes' => $offer->lengthMinutes,

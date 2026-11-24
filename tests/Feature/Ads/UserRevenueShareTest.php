@@ -12,7 +12,11 @@ use App\Services\Ads\UserRevenueShare;
 use Tests\Support\TapResearchFixtures;
 
 beforeEach(function () {
-    AdProvider::factory()->create();
+    AdProvider::factory()->create([
+        'config' => [
+            'reward_cashout_permission' => true,
+        ],
+    ]);
     AdRewardRule::query()->create([
         'provider_key' => null,
         'activity_type' => 'survey',
@@ -83,4 +87,19 @@ test('one dollar eligible revenue yields thirty-three pending cents', function (
     ]))->assertOk();
 
     expect(Wallet::query()->where('user_id', $this->user->id)->value('pending_cents'))->toBe(33);
+});
+
+test('sandbox share does not credit without provider cashout permission', function () {
+    AdSetting::current()->update(['user_revenue_share_enabled' => true]);
+    AdProvider::query()->where('key', 'tapresearch')->update([
+        'config' => ['reward_cashout_permission' => false],
+    ]);
+
+    $this->getJson(sharePostback($this->activity, [
+        'cpid' => 'cpid-share-no-cashout',
+        'revenue' => '30.00',
+    ]))->assertOk()->assertJson(['status' => 'credited']);
+
+    expect(LedgerEntry::query()->where('entry_type', UserRevenueShare::ENTRY_TYPE)->count())->toBe(0)
+        ->and(Wallet::query()->where('user_id', $this->user->id)->value('pending_cents'))->toBeNull();
 });

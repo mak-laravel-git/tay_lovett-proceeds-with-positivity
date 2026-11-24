@@ -13,6 +13,8 @@ class PointLedgerEntry extends Model
 
     public const TYPE_REWARD = 'reward';
 
+    public const TYPE_REVERSAL = 'reversal';
+
     /**
      * @return BelongsTo<User, $this>
      */

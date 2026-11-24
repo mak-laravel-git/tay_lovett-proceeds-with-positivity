@@ -77,9 +77,12 @@ function getJson<T>(url: string): Promise<T> {
     return request<T>(url, { method: 'GET' });
 }
 
-/** Run the provider fallback chain and list what the winning provider can show. */
-export const fetchOffers = (): Promise<OffersResponse> =>
-    postJson<OffersResponse>('/surveys/offers');
+/** Run the provider fallback chain (or one selected provider) and list what it can show. */
+export const fetchOffers = (provider?: string): Promise<OffersResponse> =>
+    postJson<OffersResponse>(
+        '/surveys/offers',
+        provider ? { provider } : undefined,
+    );
 
 /** The user opened an offer: the server records the attempt and returns the entry URL. */
 export const startOffer = (body: {

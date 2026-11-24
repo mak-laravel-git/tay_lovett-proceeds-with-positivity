@@ -43,10 +43,17 @@ class WalletController extends Controller
     {
         $user = $request->user();
 
+        $validated = $request->validate([
+            'provider' => ['nullable', 'string', 'in:tapresearch,wannads,theoremreach'],
+        ]);
+
+        $providerFilter = $validated['provider'] ?? null;
+
         $activities = AdActivity::query()
             ->with('consumedQuote:id,slug,text')
             ->where('user_id', $user->id)
             ->where('source', AdActivity::SOURCE_APP)
+            ->when($providerFilter, fn ($query) => $query->where('provider_key', $providerFilter))
             ->latest('survey_started_at')
             ->latest('created_at')
             ->paginate(15)
@@ -77,6 +84,15 @@ class WalletController extends Controller
                 'lifetime_earned' => $points->lifetimeEarnedFor($user),
             ],
             'activities' => $activities,
+            'filters' => [
+                'provider' => $providerFilter,
+            ],
+            'provider_options' => [
+                ['value' => '', 'label' => 'All'],
+                ['value' => 'tapresearch', 'label' => 'TapResearch'],
+                ['value' => 'wannads', 'label' => 'Wannads'],
+                ['value' => 'theoremreach', 'label' => 'TheoremReach'],
+            ],
         ]);
     }
 

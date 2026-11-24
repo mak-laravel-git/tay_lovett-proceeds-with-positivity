@@ -39,15 +39,28 @@ type Provider = {
     registered: boolean;
     configured: boolean;
     supports_reconciliation: boolean;
+    integration_type: string;
     hints: {
         api_token: string | null;
         api_secret: string | null;
         reporting_access_token: string | null;
     };
+    compliance: {
+        approval_status: string;
+        production_enabled: boolean;
+        reward_cashout_permission: boolean;
+        concurrent_provider_permission: boolean;
+        sandbox_mode: boolean;
+        partner_id: string | null;
+        currency_name_plural: string | null;
+        exchange_rate: string | null;
+        notes: string | null;
+    };
     last_tested_at: string | null;
     last_success_at: string | null;
     last_error_category: string | null;
     callback_url: string;
+    events_url: string | null;
     return_url: string;
 };
 
@@ -167,12 +180,15 @@ export default function AdsProviders({
                         >
                             <div className="grid gap-4 lg:grid-cols-2">
                                 <dl className="grid gap-2 text-sm">
+                                    <Row label="Type">
+                                        {provider.integration_type}
+                                    </Row>
                                     <Row label="Credentials">
                                         {provider.configured
                                             ? 'Complete'
-                                            : 'Missing the API token or signing secret'}
+                                            : 'Missing required credentials / product settings'}
                                     </Row>
-                                    <Row label="API token">
+                                    <Row label="API token / public key">
                                         {provider.hints.api_token ?? 'Not set'}
                                     </Row>
                                     <Row label="Signing secret">
@@ -183,6 +199,33 @@ export default function AdsProviders({
                                             {provider.hints
                                                 .reporting_access_token ??
                                                 'Not set (reconciliation unavailable)'}
+                                        </Row>
+                                    ) : null}
+                                    <Row label="Approval">
+                                        {provider.compliance.approval_status}
+                                    </Row>
+                                    <Row label="Sandbox">
+                                        {provider.compliance.sandbox_mode
+                                            ? 'On'
+                                            : 'Off'}
+                                    </Row>
+                                    <Row label="Production enabled">
+                                        {provider.compliance.production_enabled
+                                            ? 'Yes'
+                                            : 'No'}
+                                    </Row>
+                                    <Row label="Cashout permission">
+                                        {provider.compliance
+                                            .reward_cashout_permission
+                                            ? 'Yes'
+                                            : 'No'}
+                                    </Row>
+                                    {provider.key === 'theoremreach' ? (
+                                        <Row label="Coexistence permission">
+                                            {provider.compliance
+                                                .concurrent_provider_permission
+                                                ? 'Yes'
+                                                : 'No (launch blocked)'}
                                         </Row>
                                     ) : null}
                                     <Row label="Last tested">
@@ -211,6 +254,13 @@ export default function AdsProviders({
                                         value={provider.callback_url}
                                         help="Enter this as the server-to-server reward URL in the provider’s dashboard. The provider appends its parameters and the signature; it must be a public HTTPS address."
                                     />
+                                    {provider.events_url ? (
+                                        <CopyField
+                                            label="Event webhook (reversals / bans)"
+                                            value={provider.events_url}
+                                            help="TheoremReach reversals are not sent on the reward callback. Configure this Event Webhook URL in the publisher dashboard."
+                                        />
+                                    ) : null}
                                     <CopyField
                                         label="Post-survey redirect URL"
                                         value={provider.return_url}
@@ -357,15 +407,39 @@ function CredentialsDialog({
         api_token: '',
         api_secret: '',
         reporting_access_token: '',
+        approval_status: 'unverified',
+        partner_id: '',
+        currency_name_plural: 'Points',
+        exchange_rate: '',
+        notes: '',
+        production_enabled: false,
+        reward_cashout_permission: false,
+        concurrent_provider_permission: false,
+        sandbox_mode: false,
     });
     const [processing, setProcessing] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const open = provider !== null;
+
+    if (open && values.approval_status === 'unverified' && provider) {
+        // Hydrate non-secret fields when opening a different provider.
+    }
 
     const close = () => {
         setValues({
             api_token: '',
             api_secret: '',
             reporting_access_token: '',
+            approval_status: 'unverified',
+            partner_id: '',
+            currency_name_plural: 'Points',
+            exchange_rate: '',
+            notes: '',
+            production_enabled: false,
+            reward_cashout_permission: false,
+            concurrent_provider_permission: false,
+            sandbox_mode: false,
         });
         setErrors({});
         onClose();
@@ -387,47 +461,77 @@ function CredentialsDialog({
         });
     };
 
-    const fields: {
-        name: keyof typeof values;
-        label: string;
-        hint: string | null | undefined;
-        show: boolean;
-    }[] = [
-        {
-            name: 'api_token',
-            label: 'API token',
-            hint: provider?.hints.api_token,
-            show: true,
-        },
-        {
-            name: 'api_secret',
-            label: 'Signing secret',
-            hint: provider?.hints.api_secret,
-            show: true,
-        },
-        {
-            name: 'reporting_access_token',
-            label: 'Reporting access token',
-            hint: provider?.hints.reporting_access_token,
-            show: provider?.supports_reconciliation ?? false,
-        },
-    ];
-
     return (
         <Dialog
-            open={provider !== null}
-            onOpenChange={(open) => !open && close()}
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) {
+                    close();
+                    return;
+                }
+                if (provider) {
+                    setValues((current) => ({
+                        ...current,
+                        approval_status:
+                            provider.compliance.approval_status ??
+                            'unverified',
+                        partner_id: provider.compliance.partner_id ?? '',
+                        currency_name_plural:
+                            provider.compliance.currency_name_plural ??
+                            'Points',
+                        exchange_rate:
+                            provider.compliance.exchange_rate ?? '',
+                        notes: provider.compliance.notes ?? '',
+                        production_enabled:
+                            provider.compliance.production_enabled,
+                        reward_cashout_permission:
+                            provider.compliance.reward_cashout_permission,
+                        concurrent_provider_permission:
+                            provider.compliance.concurrent_provider_permission,
+                        sandbox_mode: provider.compliance.sandbox_mode,
+                    }));
+                }
+            }}
         >
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <form onSubmit={submit} className="grid gap-4">
                     <DialogHeader>
-                        <DialogTitle>{provider?.label} credentials</DialogTitle>
+                        <DialogTitle>{provider?.label} settings</DialogTitle>
                         <DialogDescription>
-                            Stored encrypted and never shown again. Leave a
-                            field empty to keep the current value.
+                            Secrets are write-only and never shown again. Leave
+                            a secret field empty to keep the current value.
+                            Compliance flags do not equal provider approval.
                         </DialogDescription>
                     </DialogHeader>
-                    {fields
+                    {(
+                        [
+                            {
+                                name: 'api_token' as const,
+                                label:
+                                    provider?.key === 'wannads'
+                                        ? 'Public API key'
+                                        : 'API token / API key',
+                                secret: true,
+                                show: true,
+                            },
+                            {
+                                name: 'api_secret' as const,
+                                label:
+                                    provider?.key === 'wannads'
+                                        ? 'Postback SECRET (not API SECRET)'
+                                        : 'Signing secret',
+                                secret: true,
+                                show: true,
+                            },
+                            {
+                                name: 'reporting_access_token' as const,
+                                label: 'Reporting access token',
+                                secret: true,
+                                show:
+                                    provider?.supports_reconciliation ?? false,
+                            },
+                        ] as const
+                    )
                         .filter((field) => field.show)
                         .map((field) => (
                             <div key={field.name} className="grid gap-1.5">
@@ -440,8 +544,10 @@ function CredentialsDialog({
                                     autoComplete="off"
                                     value={values[field.name]}
                                     placeholder={
-                                        field.hint
-                                            ? `Current: ${field.hint}`
+                                        provider?.hints[
+                                            field.name as keyof Provider['hints']
+                                        ]
+                                            ? `Current: ${provider.hints[field.name as keyof Provider['hints']]}`
                                             : 'Not set'
                                     }
                                     onChange={(event) =>
@@ -458,12 +564,114 @@ function CredentialsDialog({
                                 ) : null}
                             </div>
                         ))}
+
+                    {provider?.key === 'theoremreach' ? (
+                        <>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="partner_id">Partner ID</Label>
+                                <Input
+                                    id="partner_id"
+                                    value={values.partner_id}
+                                    onChange={(event) =>
+                                        setValues({
+                                            ...values,
+                                            partner_id: event.target.value,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="currency_name_plural">
+                                    Currency name (plural)
+                                </Label>
+                                <Input
+                                    id="currency_name_plural"
+                                    value={values.currency_name_plural}
+                                    onChange={(event) =>
+                                        setValues({
+                                            ...values,
+                                            currency_name_plural:
+                                                event.target.value,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="exchange_rate">
+                                    Exchange rate
+                                </Label>
+                                <Input
+                                    id="exchange_rate"
+                                    value={values.exchange_rate}
+                                    onChange={(event) =>
+                                        setValues({
+                                            ...values,
+                                            exchange_rate: event.target.value,
+                                        })
+                                    }
+                                />
+                            </div>
+                        </>
+                    ) : null}
+
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="approval_status">Approval status</Label>
+                        <Input
+                            id="approval_status"
+                            value={values.approval_status}
+                            onChange={(event) =>
+                                setValues({
+                                    ...values,
+                                    approval_status: event.target.value,
+                                })
+                            }
+                        />
+                    </div>
+
+                    {(
+                        [
+                            [
+                                'sandbox_mode',
+                                'Sandbox / test mode',
+                            ],
+                            [
+                                'production_enabled',
+                                'Production enabled flag',
+                            ],
+                            [
+                                'reward_cashout_permission',
+                                'Cash-redeemable reward permission',
+                            ],
+                            [
+                                'concurrent_provider_permission',
+                                'Concurrent provider permission (TheoremReach)',
+                            ],
+                        ] as const
+                    ).map(([name, label]) => (
+                        <div
+                            key={name}
+                            className="flex items-center justify-between gap-3"
+                        >
+                            <Label htmlFor={name}>{label}</Label>
+                            <Switch
+                                id={name}
+                                checked={values[name]}
+                                onCheckedChange={(checked) =>
+                                    setValues({
+                                        ...values,
+                                        [name]: checked,
+                                    })
+                                }
+                            />
+                        </div>
+                    ))}
+
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={close}>
                             Cancel
                         </Button>
                         <Button type="submit" disabled={processing}>
-                            Save credentials
+                            Save settings
                         </Button>
                     </DialogFooter>
                 </form>
