@@ -40,7 +40,6 @@ type Props = {
         reconciliation_tolerance_usd: string;
         reconciliation_recheck_days: number;
         offers_cache_seconds: number;
-        gate_quote_generation: boolean;
         user_revenue_share_enabled: boolean;
     };
     timezones: string[];
@@ -274,17 +273,13 @@ function SettingsForm({
             settings.reconciliation_recheck_days,
         ),
         offers_cache_seconds: String(settings.offers_cache_seconds),
-        gate_quote_generation: settings.gate_quote_generation,
         user_revenue_share_enabled: settings.user_revenue_share_enabled,
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [processing, setProcessing] = useState(false);
 
     const set = (
-        key: Exclude<
-            keyof typeof values,
-            'gate_quote_generation' | 'user_revenue_share_enabled'
-        >,
+        key: Exclude<keyof typeof values, 'user_revenue_share_enabled'>,
         value: string,
     ) =>
         setValues((current) => ({ ...current, [key]: value }));
@@ -373,22 +368,6 @@ function SettingsForm({
                         }
                     />
                     <FieldError message={errors.offers_cache_seconds} />
-                </FilterField>
-                <FilterField label="Quote generation needs a completed survey">
-                    <label className="flex items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={values.gate_quote_generation}
-                            onChange={(event) =>
-                                setValues((current) => ({
-                                    ...current,
-                                    gate_quote_generation: event.target.checked,
-                                }))
-                            }
-                        />
-                        Require a survey before each quote (turn off if no
-                        provider is configured yet)
-                    </label>
                 </FilterField>
                 <FilterField label="Sandbox user revenue share (Option B)">
                     <label className="flex items-start gap-2 text-sm">

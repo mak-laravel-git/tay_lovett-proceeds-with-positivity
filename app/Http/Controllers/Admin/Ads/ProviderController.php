@@ -9,9 +9,12 @@ use App\Models\AdProviderAudit;
 use App\Models\AdProviderCall;
 use App\Services\Ads\AdProviderRegistry;
 use App\Services\Ads\Contracts\ReconcilesRevenue;
+use App\Services\Ads\Providers\TapResearch\TapResearchAdapter;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -67,6 +70,12 @@ class ProviderController extends Controller
                         'exchange_rate' => $provider->configValue('exchange_rate'),
                         'notes' => $provider->configValue('notes'),
                     ],
+                    'connection' => $provider->key === TapResearchAdapter::KEY ? [
+                        'base_url' => $provider->configValue('base_url'),
+                        'timeout_seconds' => $provider->configValue('timeout_seconds'),
+                        'default_base_url' => config('services.tapresearch.base_url'),
+                        'default_timeout_seconds' => (int) config('services.tapresearch.timeout', 8),
+                    ] : null,
                     'last_tested_at' => $provider->last_tested_at?->toIso8601String(),
                     'last_success_at' => $provider->last_success_at?->toIso8601String(),
                     'last_error_category' => $provider->last_error_category,
@@ -112,6 +121,13 @@ class ProviderController extends Controller
             'currency_name_plural' => ['nullable', 'string', 'max:64'],
             'exchange_rate' => ['nullable', 'string', 'max:32'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            // Only the TapResearch survey feed has a configurable address and timeout.
+            'base_url' => ['nullable', 'string', 'max:255', Rule::prohibitedIf($provider->key !== TapResearchAdapter::KEY), function (string $attribute, mixed $value, Closure $fail): void {
+                if (! is_string($value) || ! TapResearchAdapter::isAllowedBaseUrl($value)) {
+                    $fail('Use an https address on tapresearch.com: the API token is sent to it.');
+                }
+            }],
+            'timeout_seconds' => ['nullable', 'integer', 'min:2', 'max:30', Rule::prohibitedIf($provider->key !== TapResearchAdapter::KEY)],
         ]);
 
         $settings = $provider->settings ?? [];
@@ -150,6 +166,27 @@ class ProviderController extends Controller
                 $changed[] = $field;
             }
         }
+        // An empty value returns to the built-in default.
+        foreach (['base_url', 'timeout_seconds'] as $field) {
+            if (! array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $value = $validated[$field] === null ? null : ($field === 'timeout_seconds' ? (int) $validated[$field] : $validated[$field]);
+
+            if (($config[$field] ?? null) === $value) {
+                continue;
+            }
+
+            if ($value === null) {
+                unset($config[$field]);
+            } else {
+                $config[$field] = $value;
+            }
+
+            $changed[] = $field;
+        }
+
         $provider->config = $config;
 
         if (array_key_exists('priority', $validated) && $validated['priority'] !== $provider->priority) {
@@ -193,6 +230,23 @@ class ProviderController extends Controller
         $this->audit($request, $provider, 'updated', ['changed' => $changed]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $provider->label.' updated.']);
+
+        return back();
+    }
+
+    /**
+     * Delete a provider's stored credentials. It is switched off at the same time, as it cannot work without them.
+     */
+    public function clearCredentials(Request $request, AdProvider $provider): RedirectResponse
+    {
+        $provider->settings = null;
+        $provider->is_enabled = false;
+        $provider->health = 'unknown';
+        $provider->save();
+
+        $this->audit($request, $provider, 'credentials_cleared');
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $provider->label.': credentials deleted and provider switched off.']);
 
         return back();
     }
@@ -251,6 +305,7 @@ class ProviderController extends Controller
             'http_status' => $result->httpStatus,
             'latency_ms' => $result->latencyMs,
             'error_category' => $result->errorCategory,
+            'response_excerpt' => $result->responseExcerpt,
         ]);
 
         $provider->update([

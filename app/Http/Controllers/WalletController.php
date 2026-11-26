@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ActivityStatus;
+use App\Enums\QuoteStatus;
 use App\Models\AdActivity;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
@@ -50,7 +51,7 @@ class WalletController extends Controller
         $providerFilter = $validated['provider'] ?? null;
 
         $activities = AdActivity::query()
-            ->with('consumedQuote:id,slug,text')
+            ->with('consumedQuote:id,slug,text,status')
             ->where('user_id', $user->id)
             ->where('source', AdActivity::SOURCE_APP)
             ->when($providerFilter, fn ($query) => $query->where('provider_key', $providerFilter))
@@ -68,8 +69,9 @@ class WalletController extends Controller
                 'points' => $activity->awarded_points,
                 'reward_status' => $activity->reward_status->value,
                 'purpose' => $activity->purpose?->label(),
-                // What a completed survey paid for: the quote it unlocked, or null while it is still unspent.
-                'used_for' => $activity->consumedQuote === null ? null : [
+                // What a completed survey paid for: the quote it unlocked, or null while it is still unspent or
+                // the quote is still waiting for its last workflow step (its text must not be shown yet).
+                'used_for' => $activity->consumedQuote === null || $activity->consumedQuote->status === QuoteStatus::AwaitingUnlock ? null : [
                     'slug' => $activity->consumedQuote->slug,
                     'text' => str($activity->consumedQuote->text)->limit(80)->toString(),
                 ],

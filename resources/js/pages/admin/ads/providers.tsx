@@ -6,6 +6,7 @@ import {
     Copy,
     KeyRound,
     PlugZap,
+    Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -56,6 +57,13 @@ type Provider = {
         exchange_rate: string | null;
         notes: string | null;
     };
+    /** Editable endpoint settings; null for providers with a fixed address. */
+    connection: {
+        base_url: string | null;
+        timeout_seconds: number | null;
+        default_base_url: string;
+        default_timeout_seconds: number;
+    } | null;
     last_tested_at: string | null;
     last_success_at: string | null;
     last_error_category: string | null;
@@ -110,6 +118,19 @@ export default function AdsProviders({
             {},
             { preserveScroll: true },
         );
+
+    const clearCredentials = (provider: Provider) => {
+        if (
+            window.confirm(
+                `Delete the stored credentials of ${provider.label}? It will be switched off.`,
+            )
+        ) {
+            router.delete(
+                `/admin/ads/providers/${provider.id}/credentials`,
+                { preserveScroll: true },
+            );
+        }
+    };
 
     return (
         <>
@@ -285,6 +306,15 @@ export default function AdsProviders({
                                 >
                                     <PlugZap /> Test connection
                                 </Button>
+                                {Object.values(provider.hints).some(Boolean) ? (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => clearCredentials(provider)}
+                                    >
+                                        <Trash2 /> Delete credentials
+                                    </Button>
+                                ) : null}
                                 <div className="ml-auto flex items-center gap-1">
                                     <Button
                                         size="icon"
@@ -335,10 +365,13 @@ export default function AdsProviders({
                 </AdminSectionCard>
             </AdminPage>
 
-            <CredentialsDialog
-                provider={editing}
-                onClose={() => setEditing(null)}
-            />
+            {editing ? (
+                <CredentialsDialog
+                    key={editing.id}
+                    provider={editing}
+                    onClose={() => setEditing(null)}
+                />
+            ) : null}
         </>
     );
 }
@@ -400,103 +433,65 @@ function CredentialsDialog({
     provider,
     onClose,
 }: {
-    provider: Provider | null;
+    provider: Provider;
     onClose: () => void;
 }) {
+    // The caller keys this by provider, so the form always starts from that provider's saved settings and an
+    // untouched switch is saved as it was.
     const [values, setValues] = useState({
         api_token: '',
         api_secret: '',
         reporting_access_token: '',
-        approval_status: 'unverified',
-        partner_id: '',
-        currency_name_plural: 'Points',
-        exchange_rate: '',
-        notes: '',
-        production_enabled: false,
-        reward_cashout_permission: false,
-        concurrent_provider_permission: false,
-        sandbox_mode: false,
+        approval_status: provider.compliance.approval_status,
+        partner_id: provider.compliance.partner_id ?? '',
+        currency_name_plural:
+            provider.compliance.currency_name_plural ?? 'Points',
+        exchange_rate: provider.compliance.exchange_rate ?? '',
+        notes: provider.compliance.notes ?? '',
+        production_enabled: provider.compliance.production_enabled,
+        reward_cashout_permission:
+            provider.compliance.reward_cashout_permission,
+        concurrent_provider_permission:
+            provider.compliance.concurrent_provider_permission,
+        sandbox_mode: provider.compliance.sandbox_mode,
+    });
+    const [connection, setConnection] = useState({
+        base_url: provider.connection?.base_url ?? '',
+        timeout_seconds: String(provider.connection?.timeout_seconds ?? ''),
     });
     const [processing, setProcessing] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const open = provider !== null;
-
-    if (open && values.approval_status === 'unverified' && provider) {
-        // Hydrate non-secret fields when opening a different provider.
-    }
-
-    const close = () => {
-        setValues({
-            api_token: '',
-            api_secret: '',
-            reporting_access_token: '',
-            approval_status: 'unverified',
-            partner_id: '',
-            currency_name_plural: 'Points',
-            exchange_rate: '',
-            notes: '',
-            production_enabled: false,
-            reward_cashout_permission: false,
-            concurrent_provider_permission: false,
-            sandbox_mode: false,
-        });
-        setErrors({});
-        onClose();
-    };
-
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
 
-        if (!provider) {
-            return;
-        }
+        // The connection fields only exist for providers that support them.
+        const body = provider.connection
+            ? { ...values, ...connection }
+            : values;
 
-        router.put(`/admin/ads/providers/${provider.id}`, values, {
+        router.put(`/admin/ads/providers/${provider.id}`, body, {
             preserveScroll: true,
             onStart: () => setProcessing(true),
             onFinish: () => setProcessing(false),
             onError: (bag) => setErrors(bag),
-            onSuccess: close,
+            onSuccess: onClose,
         });
     };
 
     return (
         <Dialog
-            open={open}
+            open
             onOpenChange={(next) => {
                 if (!next) {
-                    close();
-                    return;
-                }
-                if (provider) {
-                    setValues((current) => ({
-                        ...current,
-                        approval_status:
-                            provider.compliance.approval_status ??
-                            'unverified',
-                        partner_id: provider.compliance.partner_id ?? '',
-                        currency_name_plural:
-                            provider.compliance.currency_name_plural ??
-                            'Points',
-                        exchange_rate:
-                            provider.compliance.exchange_rate ?? '',
-                        notes: provider.compliance.notes ?? '',
-                        production_enabled:
-                            provider.compliance.production_enabled,
-                        reward_cashout_permission:
-                            provider.compliance.reward_cashout_permission,
-                        concurrent_provider_permission:
-                            provider.compliance.concurrent_provider_permission,
-                        sandbox_mode: provider.compliance.sandbox_mode,
-                    }));
+                    onClose();
                 }
             }}
         >
             <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <form onSubmit={submit} className="grid gap-4">
                     <DialogHeader>
-                        <DialogTitle>{provider?.label} settings</DialogTitle>
+                        <DialogTitle>{provider.label} settings</DialogTitle>
                         <DialogDescription>
                             Secrets are write-only and never shown again. Leave
                             a secret field empty to keep the current value.
@@ -614,6 +609,65 @@ function CredentialsDialog({
                         </>
                     ) : null}
 
+                    {provider.connection ? (
+                        <>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="base_url">
+                                    Survey feed base URL
+                                </Label>
+                                <Input
+                                    id="base_url"
+                                    value={connection.base_url}
+                                    placeholder={
+                                        provider.connection.default_base_url
+                                    }
+                                    onChange={(event) =>
+                                        setConnection({
+                                            ...connection,
+                                            base_url: event.target.value,
+                                        })
+                                    }
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Empty uses the default. Only https
+                                    addresses on tapresearch.com are accepted.
+                                </p>
+                                {errors.base_url ? (
+                                    <p className="text-sm text-destructive">
+                                        {errors.base_url}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="timeout_seconds">
+                                    Request timeout (seconds)
+                                </Label>
+                                <Input
+                                    id="timeout_seconds"
+                                    type="number"
+                                    min={2}
+                                    max={30}
+                                    value={connection.timeout_seconds}
+                                    placeholder={String(
+                                        provider.connection
+                                            .default_timeout_seconds,
+                                    )}
+                                    onChange={(event) =>
+                                        setConnection({
+                                            ...connection,
+                                            timeout_seconds: event.target.value,
+                                        })
+                                    }
+                                />
+                                {errors.timeout_seconds ? (
+                                    <p className="text-sm text-destructive">
+                                        {errors.timeout_seconds}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </>
+                    ) : null}
+
                     <div className="grid gap-1.5">
                         <Label htmlFor="approval_status">Approval status</Label>
                         <Input
@@ -667,7 +721,7 @@ function CredentialsDialog({
                     ))}
 
                     <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={close}>
+                        <Button type="button" variant="ghost" onClick={onClose}>
                             Cancel
                         </Button>
                         <Button type="submit" disabled={processing}>

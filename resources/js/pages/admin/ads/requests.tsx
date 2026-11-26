@@ -32,6 +32,8 @@ type Call = {
     http_status: number | null;
     latency_ms: number | null;
     error: string | null;
+    /** Shortened provider answer with secrets removed. */
+    response: string | null;
     position: number;
     request_id: number | null;
     request_outcome: string | null;
@@ -217,6 +219,16 @@ export default function AdsRequests({ calls, stats, filters, options }: Props) {
                                                     '_',
                                                     ' ',
                                                 ) ?? '—'}
+                                                {call.response ? (
+                                                    <details className="mt-1">
+                                                        <summary className="cursor-pointer font-medium text-[#0f6f8f]">
+                                                            API response
+                                                        </summary>
+                                                        <pre className="mt-1 max-h-48 max-w-sm overflow-auto rounded-md bg-[#f8fbfe] p-2 text-[11px] break-all whitespace-pre-wrap">
+                                                            {call.response}
+                                                        </pre>
+                                                    </details>
+                                                ) : null}
                                             </TableCell>
                                         </TableRow>
                                     ))}

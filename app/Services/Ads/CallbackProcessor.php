@@ -9,9 +9,11 @@ use App\Enums\RewardStatus;
 use App\Models\AdActivity;
 use App\Models\AdProvider;
 use App\Models\ProviderCallback;
+use App\Models\QuoteWorkflow;
 use App\Services\Ads\Contracts\AdProviderAdapter;
 use App\Services\Ads\Data\CallbackPayload;
 use App\Services\Ads\Data\ProcessedCallback;
+use App\Services\QuoteWorkflow\WorkflowLogger;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +35,7 @@ class CallbackProcessor
         private readonly UserRevenueShare $revenueShare,
         private readonly ProviderIdentities $identities,
         private readonly ProviderComplianceGate $compliance,
+        private readonly WorkflowLogger $workflowLogger,
     ) {}
 
     public function handle(AdProvider $provider, AdProviderAdapter $adapter, Request $request): ProcessedCallback
@@ -70,7 +73,10 @@ class CallbackProcessor
         }
 
         try {
-            return DB::transaction(fn (): ProcessedCallback => $this->process($provider, $request, $payload), 3);
+            $processed = DB::transaction(fn (): ProcessedCallback => $this->process($provider, $request, $payload), 3);
+            $this->logWorkflowSurvey($processed);
+
+            return $processed;
         } catch (UniqueConstraintViolationException) {
             // A concurrent delivery of the same transaction won the race and committed first.
             $existing = AdActivity::query()
@@ -82,6 +88,32 @@ class CallbackProcessor
 
             return new ProcessedCallback(200, CallbackResult::Duplicate, $existing?->id);
         }
+    }
+
+    /**
+     * Put the outcome of a quote-flow survey on that run's timeline. Done after the transaction has committed,
+     * so logging can never undo a confirmation.
+     */
+    private function logWorkflowSurvey(ProcessedCallback $processed): void
+    {
+        if ($processed->activityId === null || $processed->result === CallbackResult::Duplicate) {
+            return;
+        }
+
+        $activity = AdActivity::query()->find($processed->activityId);
+
+        if ($activity === null || $activity->quote_workflow_id === null) {
+            return;
+        }
+
+        rescue(fn () => $this->workflowLogger->log(
+            WorkflowLogger::SURVEY,
+            'provider_'.$activity->status->value,
+            QuoteWorkflow::query()->find($activity->quote_workflow_id),
+            ['provider' => $activity->provider_key, 'activity' => $activity->id, 'result' => $processed->result->value],
+            $activity->status === ActivityStatus::Approved ? 'info' : 'warning',
+            $activity->user_id,
+        ));
     }
 
     private function process(AdProvider $provider, Request $request, CallbackPayload $payload): ProcessedCallback

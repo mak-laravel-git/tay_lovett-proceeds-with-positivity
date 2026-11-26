@@ -1,6 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { ClipboardList } from 'lucide-react';
 import { useState } from 'react';
+import { DisplayAdSlot } from '@/components/ads/display-ad-slot';
 import { SurveyFrame } from '@/components/ads/survey-frame';
 import { SurveyPresenter } from '@/components/ads/survey-presenter';
 import { Reveal, Stagger, StaggerItem } from '@/components/motion/reveal';
@@ -64,6 +65,9 @@ export default function Surveys({
                     viewing an offer does not generate a payout.
                 </Notice>
             </div>
+
+            {/* Only on the provider list, never next to an open survey list. */}
+            {active === null ? <DisplayAdSlot location="earn_top" /> : null}
 
             {active === null ? (
                 <Reveal>

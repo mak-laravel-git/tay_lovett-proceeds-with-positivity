@@ -16,11 +16,14 @@ class TapResearchClient
     /**
      * Survey Feed API: the surveys one participant currently qualifies for.
      *
+     * @param  string|null  $baseUrl  An administrator's override; the configured address is used otherwise.
+     * @param  int|null  $timeout  Seconds, same rule.
+     *
      * @throws ConnectionException
      */
-    public function campaigns(string $apiToken, string $externalUserId, string $ip, int $deviceType): Response
+    public function campaigns(string $apiToken, string $externalUserId, string $ip, int $deviceType, ?string $baseUrl = null, ?int $timeout = null): Response
     {
-        return $this->feed($apiToken, $externalUserId)->get('/campaigns', [
+        return $this->feed($apiToken, $externalUserId, $baseUrl, $timeout)->get('/campaigns', [
             'user_ip' => $ip,
             'device_type' => $deviceType,
         ]);
@@ -43,11 +46,13 @@ class TapResearchClient
             ]);
     }
 
-    private function feed(string $apiToken, string $externalUserId): PendingRequest
+    private function feed(string $apiToken, string $externalUserId, ?string $baseUrl, ?int $timeout): PendingRequest
     {
-        return Http::baseUrl(rtrim((string) config('services.tapresearch.base_url'), '/'))
+        return Http::baseUrl(rtrim($baseUrl ?? (string) config('services.tapresearch.base_url'), '/'))
             ->acceptJson()
-            ->timeout((int) config('services.tapresearch.timeout', 8))
+            ->timeout($timeout ?? (int) config('services.tapresearch.timeout', 8))
+            // A redirect would carry the API token to wherever it points.
+            ->withoutRedirecting()
             ->withHeaders([
                 'X-Api-Token' => $apiToken,
                 'X-User-Identifier' => $externalUserId,

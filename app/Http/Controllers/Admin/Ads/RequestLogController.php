@@ -41,6 +41,7 @@ class RequestLogController extends Controller
                 'http_status' => $call->http_status,
                 'latency_ms' => $call->latency_ms,
                 'error' => $call->error_category,
+                'response' => $call->response_excerpt,
                 'position' => $call->position,
                 'request_id' => $call->ad_request_id,
                 'request_outcome' => $call->request?->outcome,

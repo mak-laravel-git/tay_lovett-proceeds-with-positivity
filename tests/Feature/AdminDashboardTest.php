@@ -15,7 +15,7 @@ test('administrators see the overview with chart data', function () {
             ->component('admin/home')
             ->has('stats')
             ->has('generationTrend', 7)
-            ->has('quoteStatusChart', 5)
+            ->has('quoteStatusChart', 6)
             ->where('stats.published_quotes', 1)
             ->where('stats.pending_quotes', 1));
 });

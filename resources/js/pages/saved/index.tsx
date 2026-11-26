@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { Bookmark, Share2, Sparkle } from 'lucide-react';
 import { useState } from 'react';
+import { DisplayAdSlot } from '@/components/ads/display-ad-slot';
 import { Reveal } from '@/components/motion/reveal';
 import { QuoteVisual } from '@/components/quote-card';
 import { ShareDialog } from '@/components/share-dialog';
@@ -23,6 +24,7 @@ export default function SavedIndex({ quotes }: { quotes: SavedQuote[] }) {
                 title="Saved Quotes"
                 pill={`${quotes.length} saved`}
             />
+            <DisplayAdSlot location="saved_top" />
             {quotes.length === 0 && (
                 <Reveal>
                     <Panel className="p-4">

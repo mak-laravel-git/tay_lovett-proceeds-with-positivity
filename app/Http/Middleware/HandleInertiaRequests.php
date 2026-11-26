@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\AppSettings;
+use App\Services\GoogleAds\DisplayAds;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -48,6 +49,8 @@ class HandleInertiaRequests extends Middleware
                 'is_administrator' => $request->user()?->isAdministrator() ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            // Regular Google ads for this page; null when they are off or the page must not carry any.
+            'displayAds' => fn () => app(DisplayAds::class)->forRequest($request),
         ];
     }
 }

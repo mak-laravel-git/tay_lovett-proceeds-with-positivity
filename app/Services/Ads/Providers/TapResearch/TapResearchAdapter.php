@@ -14,6 +14,7 @@ use App\Services\Ads\Data\OfferResult;
 use App\Services\Ads\Data\ReturnInfo;
 use App\Services\Ads\Data\RevenueReport;
 use App\Support\Micros;
+use App\Support\Redactor;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -69,16 +70,19 @@ class TapResearchAdapter implements AdProviderAdapter, HandlesReturn, Reconciles
         $started = hrtime(true);
 
         try {
-            $response = $this->client->campaigns($token, $request->externalUserId, $request->ip, $request->deviceType);
+            $response = $this->requestCampaigns($provider, $token, $request->externalUserId, $request->ip, $request->deviceType);
         } catch (ConnectionException) {
             return OfferResult::failed('connection_error', null, $this->elapsed($started));
         } catch (Throwable) {
             return OfferResult::failed('unexpected_error', null, $this->elapsed($started));
         }
 
-        $latency = $this->elapsed($started);
+        return $this->offersFrom($response, $this->elapsed($started))->withExcerpt($this->excerpt($provider, $response));
+    }
 
-        if ($response->failed()) {
+    private function offersFrom(Response $response, int $latency): OfferResult
+    {
+        if ($response->failed() || $response->redirect()) {
             return OfferResult::failed($this->classify($response), $response->status(), $latency);
         }
 
@@ -187,7 +191,7 @@ class TapResearchAdapter implements AdProviderAdapter, HandlesReturn, Reconciles
         $started = hrtime(true);
 
         try {
-            $response = $this->client->campaigns($token, 'connection-test', '127.0.0.1', OfferRequest::DEVICE_DESKTOP);
+            $response = $this->requestCampaigns($provider, $token, 'connection-test', '127.0.0.1', OfferRequest::DEVICE_DESKTOP);
         } catch (ConnectionException) {
             return OfferResult::failed('connection_error', null, $this->elapsed($started));
         } catch (Throwable) {
@@ -197,9 +201,58 @@ class TapResearchAdapter implements AdProviderAdapter, HandlesReturn, Reconciles
         $latency = $this->elapsed($started);
 
         // Any 2xx proves the token is accepted, even when the test participant is ineligible or has no surveys.
-        return $response->successful()
+        $result = $response->successful()
             ? new OfferResult(CallOutcome::Success, [], $response->status(), null, $latency)
             : OfferResult::failed($this->classify($response), $response->status(), $latency);
+
+        return $result->withExcerpt($this->excerpt($provider, $response));
+    }
+
+    /**
+     * The survey feed call, honouring the address and timeout an administrator set for this provider.
+     *
+     * @throws ConnectionException
+     */
+    private function requestCampaigns(AdProvider $provider, string $token, string $externalUserId, string $ip, int $deviceType): Response
+    {
+        $baseUrl = $provider->configValue('base_url');
+        $timeout = $provider->configValue('timeout_seconds');
+
+        return $this->client->campaigns(
+            $token,
+            $externalUserId,
+            $ip,
+            $deviceType,
+            // Checked again here, so a value written any other way can never send the token elsewhere.
+            is_string($baseUrl) && self::isAllowedBaseUrl($baseUrl) ? $baseUrl : null,
+            is_numeric($timeout) ? (int) $timeout : null,
+        );
+    }
+
+    /**
+     * Only HTTPS addresses on TapResearch's own domain may receive the API token.
+     */
+    public static function isAllowedBaseUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+
+        if ($parts === false || ($parts['scheme'] ?? '') !== 'https' || isset($parts['user']) || isset($parts['pass'])
+            || isset($parts['query']) || isset($parts['fragment']) || preg_match('/[\s\\\\]/', $url) === 1) {
+            return false;
+        }
+
+        $host = strtolower($parts['host'] ?? '');
+
+        return $host === 'tapresearch.com' || str_ends_with($host, '.tapresearch.com');
+    }
+
+    private function excerpt(AdProvider $provider, Response $response): ?string
+    {
+        return Redactor::excerpt($response->body(), [
+            $provider->setting('api_token'),
+            $provider->setting('api_secret'),
+            $provider->setting('reporting_access_token'),
+        ]);
     }
 
     /**

@@ -1,18 +1,14 @@
 <?php
 
-use App\Ai\Agents\QuoteAgent;
 use App\Enums\ActivityStatus;
 use App\Enums\GatePurpose;
 use App\Models\AdActivity;
 use App\Models\AdProvider;
 use App\Models\AdRewardRule;
-use App\Models\AdSetting;
-use App\Models\AiModel;
-use App\Models\AiProviderCredential;
-use App\Models\AiSetting;
 use App\Models\PointBalance;
 use App\Models\Quote;
 use App\Models\QuoteCategory;
+use App\Models\QuoteWorkflowSetting;
 use App\Models\User;
 use App\Services\Ads\AdGate;
 use App\Services\Ads\SimulatedCompletion;
@@ -23,75 +19,10 @@ beforeEach(function () {
     Http::preventStrayRequests();
 });
 
-/**
- * A working AI route, so a failure in these tests can only come from the gate.
- */
-function readyAiRoute(): void
-{
-    QuoteAgent::fake([
-        ['text' => 'Hope finds a way through.', 'category' => 'Hope'],
-        ['text' => 'Courage is a quiet daily choice.', 'category' => 'Hope'],
-    ]);
-
-    AiSetting::current()->update(['generation_enabled' => true, 'daily_budget_cents' => 100, 'max_attempts' => 2]);
-    AiProviderCredential::query()->create([
-        'driver' => 'openai', 'label' => 'OpenAI A', 'priority' => 1, 'is_enabled' => true, 'payload' => ['key' => 'fake-key'],
-    ]);
-    AiModel::query()->create(['driver' => 'openai', 'name' => 'gpt-test', 'is_enabled' => true, 'max_request_cents' => 25]);
-}
-
 function unlockFor(User $user, array $state = []): AdActivity
 {
     return AdActivity::factory()->for($user)->approved()->create(['purpose' => GatePurpose::QuoteGeneration, ...$state]);
 }
-
-test('a quote cannot be generated without a completed survey', function () {
-    readyAiRoute();
-    $user = User::factory()->create();
-    $category = QuoteCategory::factory()->create();
-
-    $this->actingAs($user)->post(route('studio.generate'), ['quote_category_id' => $category->id])
-        ->assertSessionHasErrors('ad_gate');
-
-    expect(Quote::query()->count())->toBe(0);
-});
-
-test('a completed survey pays for exactly one quote and records which one', function () {
-    readyAiRoute();
-    $user = User::factory()->create();
-    $category = QuoteCategory::factory()->create();
-    $unlock = unlockFor($user);
-
-    $this->actingAs($user)->post(route('studio.generate'), ['quote_category_id' => $category->id])
-        ->assertRedirect(route('studio'))
-        ->assertSessionHasNoErrors();
-
-    $quote = Quote::query()->firstOrFail();
-    $unlock->refresh();
-    expect($unlock->consumed_at)->not->toBeNull()
-        ->and($unlock->consumed_quote_id)->toBe($quote->id);
-
-    // The same survey cannot be spent again.
-    $this->actingAs($user)->post(route('studio.generate'), ['quote_category_id' => $category->id])
-        ->assertSessionHasErrors('ad_gate');
-
-    expect(Quote::query()->count())->toBe(1);
-});
-
-test('a failed generation gives the unlock back', function () {
-    // No AI provider is configured, so generation fails after the gate has let the request through.
-    $user = User::factory()->create();
-    $category = QuoteCategory::factory()->create();
-    $unlock = unlockFor($user);
-
-    $this->actingAs($user)->post(route('studio.generate'), ['quote_category_id' => $category->id])
-        ->assertSessionHasErrors('generation');
-
-    $unlock->refresh();
-    expect($unlock->consumed_at)->toBeNull()
-        ->and($unlock->consumed_quote_id)->toBeNull()
-        ->and(app(AdGate::class)->available($user, GatePurpose::QuoteGeneration))->toBe(1);
-});
 
 test('only an approved, unspent, in-app survey for this purpose of this user unlocks a quote', function () {
     $user = User::factory()->create();
@@ -121,16 +52,15 @@ test('two claims for a single survey cannot both succeed', function () {
         ->and($gate->claim($user, GatePurpose::QuoteGeneration))->toBeNull();
 });
 
-test('the gate can be switched off by an administrator', function () {
-    readyAiRoute();
-    AdSetting::current()->update(['gate_quote_generation' => false]);
+test('the gate follows the workflow rules', function () {
     $user = User::factory()->create();
-    $category = QuoteCategory::factory()->create();
 
-    $this->actingAs($user)->post(route('studio.generate'), ['quote_category_id' => $category->id])
-        ->assertSessionHasNoErrors();
+    foreach ([['survey_enabled' => false], ['enabled' => false]] as $rules) {
+        QuoteWorkflowSetting::current()->update(['enabled' => true, 'survey_enabled' => true, ...$rules]);
 
-    expect(Quote::query()->count())->toBe(1);
+        expect(app(AdGate::class)->enabled(GatePurpose::QuoteGeneration))->toBeFalse();
+        $this->actingAs($user)->getJson(route('ads.gate', 'quote_generation'))->assertJson(['enabled' => false]);
+    }
 });
 
 test('the gate status endpoint reports the signed-in users own unlocks', function () {
@@ -153,15 +83,14 @@ test('the gate status endpoint reports the signed-in users own unlocks', functio
     $this->getJson(route('ads.gate', 'quote_generation'))->assertUnauthorized();
 });
 
-test('studio tells the page whether the gate is on and how many unlocks are left', function () {
+test('studio tells the page whether the step-by-step flow is on', function () {
     $user = User::factory()->create();
-    unlockFor($user);
 
     $this->actingAs($user)->get(route('studio'))
         ->assertInertia(fn ($page) => $page
-            ->where('gate.purpose', 'quote_generation')
-            ->where('gate.enabled', true)
-            ->where('gate.available', 1));
+            ->where('workflow.enabled', true)
+            ->where('workflow.active', null)
+            ->where('workflow.disclosure', fn (string $text) => str_contains($text, 'does not earn points')));
 });
 
 test('starting a survey keeps the purpose it was started for', function () {
@@ -170,6 +99,10 @@ test('starting a survey keeps the purpose it was started for', function () {
         'api.tapresearch.com/supply_api/v4/campaigns*' => Http::response(TapResearchFixtures::campaigns([TapResearchFixtures::survey('777001', 5)])),
     ]);
     $user = User::factory()->create();
+    $category = QuoteCategory::factory()->create();
+    // A survey for a quote is started from a run that has reached the survey step.
+    $this->actingAs($user)->postJson(route('studio.workflow.store'), ['quote_category_id' => $category->id])
+        ->assertJsonPath('workflow.state', 'survey');
 
     $list = $this->actingAs($user)->postJson(route('surveys.offers'))->assertOk()->json();
 

@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Single-row settings for the ads/survey subsystem (same pattern as AiSetting).
  */
-#[Fillable(['settlement_timezone', 'point_usd_value_micros', 'reconciliation_tolerance_micros', 'reconciliation_recheck_days', 'offers_cache_seconds', 'gate_quote_generation', 'user_revenue_share_enabled'])]
+#[Fillable(['settlement_timezone', 'point_usd_value_micros', 'reconciliation_tolerance_micros', 'reconciliation_recheck_days', 'offers_cache_seconds', 'user_revenue_share_enabled'])]
 class AdSetting extends Model
 {
     /**
      * The factory values, identical to the migration defaults.
      *
-     * @return array{settlement_timezone: string, point_usd_value_micros: int|null, reconciliation_tolerance_micros: int, reconciliation_recheck_days: int, offers_cache_seconds: int, gate_quote_generation: bool, user_revenue_share_enabled: bool}
+     * @return array{settlement_timezone: string, point_usd_value_micros: int|null, reconciliation_tolerance_micros: int, reconciliation_recheck_days: int, offers_cache_seconds: int, user_revenue_share_enabled: bool}
      */
     public static function defaults(): array
     {
@@ -24,7 +24,6 @@ class AdSetting extends Model
             'reconciliation_tolerance_micros' => 10000,
             'reconciliation_recheck_days' => 3,
             'offers_cache_seconds' => 120,
-            'gate_quote_generation' => true,
             'user_revenue_share_enabled' => false,
         ];
     }
@@ -35,7 +34,6 @@ class AdSetting extends Model
     protected function casts(): array
     {
         return [
-            'gate_quote_generation' => 'boolean',
             'user_revenue_share_enabled' => 'boolean',
         ];
     }

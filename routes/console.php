@@ -11,6 +11,9 @@ Artisan::command('inspire', function () {
 
 Schedule::command('otp:prune')->daily();
 
+// Expire abandoned quote runs and trim old activity logs.
+Schedule::command('workflow:maintain')->hourly()->withoutOverlapping();
+
 // Daily TapResearch revenue reconciliation at midnight in the configured settlement timezone. A second pass later
 // in the morning catches reporting that was not ready yet; each run also re-checks the previous days so delayed
 // postbacks are folded in. Both are read-only for transactions and safe to repeat.

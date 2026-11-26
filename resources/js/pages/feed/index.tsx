@@ -1,7 +1,11 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowRight, Bookmark, PenLine, Sparkle, Wallet } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
+import {
+    DisplayAdSlot,
+    useDisplayPlacements,
+} from '@/components/ads/display-ad-slot';
 import { Reveal } from '@/components/motion/reveal';
 import { QuoteCard, type QuoteCardData } from '@/components/quote-card';
 import { ShareDialog } from '@/components/share-dialog';
@@ -18,6 +22,7 @@ export default function FeedIndex({
 }) {
     const [category, setCategory] = useState('All');
     const [sharing, setSharing] = useState<QuoteCardData | null>(null);
+    const adEvery = useDisplayPlacements('feed_between')[0]?.every_n || 4;
     // The survey opens over this page; when it is confirmed the points refresh in place.
     const adBreak = useAdBreak({
         onComplete: () => router.reload({ only: ['points'] }),
@@ -130,6 +135,8 @@ export default function FeedIndex({
                 </Panel>
             </Reveal>
 
+            <DisplayAdSlot location="feed_top" />
+
             <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 pb-3.5 md:px-0.5">
                 <div className="flex items-center gap-2">
                     <h2 className="text-[17px] font-extrabold md:text-[19px]">
@@ -163,13 +170,18 @@ export default function FeedIndex({
             )}
 
             {list.map((quote, index) => (
-                <QuoteCard
-                    key={quote.slug}
-                    quote={quote}
-                    index={index}
-                    onShare={setSharing}
-                    onGenerateAd={adBreak.start}
-                />
+                <Fragment key={quote.slug}>
+                    <QuoteCard
+                        quote={quote}
+                        index={index}
+                        onShare={setSharing}
+                        onGenerateAd={adBreak.start}
+                    />
+                    {/* Between quotes only: never after the last one. */}
+                    {(index + 1) % adEvery === 0 && index + 1 < list.length ? (
+                        <DisplayAdSlot location="feed_between" />
+                    ) : null}
+                </Fragment>
             ))}
 
             {adBreak.element}

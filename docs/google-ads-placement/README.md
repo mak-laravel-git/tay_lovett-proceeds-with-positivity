@@ -1,7 +1,10 @@
 # Google Ads Placement
 
 Planning artifacts for **Google AdSense display placements** (quotes, surveys, offerwalls).  
-**Status:** PLAN-ONLY — docs ready for later execution. No AdSense UI wiring in this folder’s deliverable.
+**Status:** SUPERSEDED (2026-11-26) — regular ads are implemented as admin-managed ad units. See
+[docs/implementation/QUOTE_WORKFLOW.md](../implementation/QUOTE_WORKFLOW.md). The plan below is kept for history;
+its slots inside the survey dialog and beside each survey option were **not** built, because AdSense forbids ads in
+pop-ups and such placements invite accidental clicks.
 
 ## Documents
 

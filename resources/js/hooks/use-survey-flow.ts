@@ -25,6 +25,8 @@ export type SurveyFlowOptions = {
     enabled?: boolean;
     /** When set, ask only this provider instead of running the fallback chain. */
     providerKey?: string;
+    /** Where the survey list comes from instead of the default endpoint. Must be a stable function. */
+    fetchList?: () => Promise<OffersResponse>;
     /** Called once the provider has confirmed a completed survey. */
     onApproved?: (status: ActivityStatusResponse) => void;
 };
@@ -44,6 +46,7 @@ export function useSurveyFlow({
     purpose,
     enabled = true,
     providerKey,
+    fetchList,
     onApproved,
 }: SurveyFlowOptions = {}) {
     const [list, setList] = useState<OffersResponse | null>(null);
@@ -65,7 +68,7 @@ export function useSurveyFlow({
         setError(null);
 
         try {
-            setList(await fetchOffers(providerKey));
+            setList(await (fetchList ? fetchList() : fetchOffers(providerKey)));
         } catch (caught) {
             setError(
                 caught instanceof Error
@@ -75,7 +78,7 @@ export function useSurveyFlow({
         } finally {
             setLoading(false);
         }
-    }, [providerKey]);
+    }, [providerKey, fetchList]);
 
     useEffect(() => {
         if (!enabled) {
