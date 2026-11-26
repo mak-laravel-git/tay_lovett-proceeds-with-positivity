@@ -9,8 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property CallOutcome $outcome
+ * @property string|null $response_excerpt
  */
-#[Fillable(['ad_request_id', 'provider_key', 'operation', 'outcome', 'http_status', 'latency_ms', 'error_category', 'position'])]
+#[Fillable(['ad_request_id', 'provider_key', 'operation', 'outcome', 'http_status', 'latency_ms', 'error_category', 'response_excerpt', 'position'])]
 class AdProviderCall extends Model
 {
     /**

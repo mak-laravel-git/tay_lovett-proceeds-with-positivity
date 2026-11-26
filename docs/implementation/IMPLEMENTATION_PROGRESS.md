@@ -4,6 +4,12 @@
 **Baseline HEAD:** `29e31de7dd4fc0dc91eaff63fdf878e99064530d`  
 **Older chronological notes:** also see `docs/IMPLEMENTATION_PROGRESS.md` (pre-context handoff).
 
+## 2026-11-26: quote workflow and Google ads
+
+Configurable flow (rewarded ad → survey → quote → rewarded ad → publish), admin-managed Google ad units, regular
+ad placements, `ads.txt`, activity logs. Details and what is still unverified: [QUOTE_WORKFLOW.md](./QUOTE_WORKFLOW.md).
+Requires `php artisan migrate`. This supersedes the AdSense and studio gate notes in the table below.
+
 ## Phase board (master context mapping)
 
 | Phase | Name | Status | Notes |

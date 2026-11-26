@@ -6,11 +6,16 @@ import {
     Boxes,
     ChartColumn,
     Clapperboard,
+    History,
     LayoutGrid,
     ListChecks,
+    Megaphone,
+    PanelsTopLeft,
+    PlaySquare,
     PlugZap,
     Route,
     Scale,
+    ScrollText,
     Settings2,
     SlidersHorizontal,
     Shield,
@@ -18,6 +23,7 @@ import {
     Users,
     WalletCards,
     Webhook,
+    Workflow,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavUser } from '@/components/nav-user';
@@ -102,8 +108,52 @@ const advertisingItems: NavItem[] = [
     },
 ];
 
+const workflowItems: NavItem[] = [
+    {
+        title: 'Workflow settings',
+        href: '/admin/workflow',
+        icon: Workflow,
+    },
+    {
+        title: 'Runs',
+        href: '/admin/workflow/runs',
+        icon: History,
+    },
+];
+
+const googleAdItems: NavItem[] = [
+    {
+        title: 'Settings',
+        href: '/admin/google-ads',
+        icon: Megaphone,
+    },
+    {
+        title: 'Ad units',
+        href: '/admin/google-ads/placements',
+        icon: PanelsTopLeft,
+    },
+];
+
+const logItems: NavItem[] = [
+    {
+        title: 'Rewarded ads',
+        href: '/admin/logs/ads',
+        icon: PlaySquare,
+    },
+    {
+        title: 'Activity & errors',
+        href: '/admin/logs/activity',
+        icon: ScrollText,
+    },
+];
+
 // These are parents of other entries, so they are only "active" on their own page.
-const exactMatchHrefs = ['/admin', '/admin/ads'];
+const exactMatchHrefs = [
+    '/admin',
+    '/admin/ads',
+    '/admin/workflow',
+    '/admin/google-ads',
+];
 
 const operationsItems: NavItem[] = [
     {
@@ -183,7 +233,10 @@ export function AdminSidebar() {
                 <AdminNavGroup label="Platform" items={overviewItems} />
                 <AdminNavGroup label="People" items={peopleItems} />
                 <AdminNavGroup label="Content" items={contentItems} />
+                <AdminNavGroup label="Quote workflow" items={workflowItems} />
+                <AdminNavGroup label="Google ads" items={googleAdItems} />
                 <AdminNavGroup label="Advertising" items={advertisingItems} />
+                <AdminNavGroup label="Logs" items={logItems} />
                 <AdminNavGroup label="Operations" items={operationsItems} />
                 <AdminNavGroup label="AI Management" items={aiItems} />
                 <AdminNavGroup label="System" items={systemItems} />

@@ -7,7 +7,6 @@ import {
     ClipboardList,
     House,
     type LucideIcon,
-    Megaphone,
     Menu,
     PenLine,
     Share2,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState } from 'react';
+import { DisplayAdSlot } from '@/components/ads/display-ad-slot';
 import { BrandMark } from '@/components/brand-mark';
 import {
     MotionProvider,
@@ -163,21 +163,10 @@ export default function UserLayout({
                     <aside className="sticky top-[90px] hidden min-[1191px]:block">
                         <Stagger className="grid gap-4">
                             <StaggerItem>
-                                <RailCard title="Advertisement preview">
-                                    <div className="rounded-xl border-2 border-dashed border-brand/50 bg-brand-soft/60 p-4 text-center text-muted-foreground">
-                                        <span className="inline-block rounded-full bg-brand-soft px-2.5 py-1 text-[10px] font-extrabold text-brand-deep">
-                                            Sponsored
-                                        </span>
-                                        <b className="my-1.5 flex items-center justify-center gap-2 text-foreground">
-                                            <Megaphone className="size-4 text-brand" />
-                                            Ad placement area
-                                        </b>
-                                        <p className="text-xs">
-                                            Approved advertising provider will
-                                            supply real ads.
-                                        </p>
-                                    </div>
-                                </RailCard>
+                                <DisplayAdSlot
+                                    location="sidebar_right"
+                                    className="my-0"
+                                />
                             </StaggerItem>
                             <StaggerItem>
                                 <RailCard title="Platform purpose">

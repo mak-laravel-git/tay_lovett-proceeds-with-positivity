@@ -6,8 +6,8 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
 use App\Enums\GatePurpose;
 use App\Models\AdActivity;
-use App\Models\AdSetting;
 use App\Models\Quote;
+use App\Models\QuoteWorkflowSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -23,7 +23,7 @@ class AdGate
     public function enabled(GatePurpose $purpose): bool
     {
         return match ($purpose) {
-            GatePurpose::QuoteGeneration => AdSetting::current()->gate_quote_generation,
+            GatePurpose::QuoteGeneration => $this->quoteNeedsSurvey(),
         };
     }
 
@@ -76,6 +76,13 @@ class AdGate
         $activity->forceFill(['consumed_at' => null, 'consumed_quote_id' => null])->save();
     }
 
+    private function quoteNeedsSurvey(): bool
+    {
+        $rules = QuoteWorkflowSetting::current();
+
+        return $rules->enabled && $rules->survey_enabled;
+    }
+
     /**
      * @return Builder<AdActivity>
      */
@@ -84,7 +91,8 @@ class AdGate
         return AdActivity::query()
             ->where('user_id', $user->id)
             ->where('source', AdActivity::SOURCE_APP)
-            ->where('activity_type', ActivityType::Survey->value)
+            // Offerwall providers (Wannads) record their completions as their own type; they unlock too.
+            ->whereIn('activity_type', [ActivityType::Survey->value, ActivityType::Offerwall->value])
             ->where('purpose', $purpose->value)
             ->where('status', ActivityStatus::Approved->value)
             ->whereNull('consumed_at');

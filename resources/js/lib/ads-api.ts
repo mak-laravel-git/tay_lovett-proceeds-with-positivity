@@ -73,7 +73,7 @@ export function postJson<T>(url: string, body?: unknown): Promise<T> {
     });
 }
 
-function getJson<T>(url: string): Promise<T> {
+export function getJson<T>(url: string): Promise<T> {
     return request<T>(url, { method: 'GET' });
 }
 

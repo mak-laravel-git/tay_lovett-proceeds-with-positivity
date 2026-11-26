@@ -35,7 +35,7 @@ class UserRevenueShare
             return null;
         }
 
-        if ($activity->publisher_revenue_micros < 1) {
+        if ($activity->publisher_revenue_micros < 1 || ! $activity->earnsRewards()) {
             return null;
         }
 

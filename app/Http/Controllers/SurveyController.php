@@ -6,9 +6,11 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
 use App\Enums\GatePurpose;
 use App\Enums\RewardStatus;
+use App\Enums\WorkflowState;
 use App\Models\AdActivity;
 use App\Models\AdProvider;
 use App\Models\AdRequest;
+use App\Models\QuoteWorkflowSetting;
 use App\Services\Ads\AdProviderManager;
 use App\Services\Ads\AdProviderRegistry;
 use App\Services\Ads\Contracts\HandlesReturn;
@@ -16,6 +18,8 @@ use App\Services\Ads\Data\OfferRequest;
 use App\Services\Ads\PointLedger;
 use App\Services\Ads\ProviderComplianceGate;
 use App\Services\Ads\ProviderIdentities;
+use App\Services\QuoteWorkflow\WorkflowLogger;
+use App\Services\QuoteWorkflow\WorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -92,13 +96,13 @@ class SurveyController extends Controller
                 $providerKey,
                 $providerKey === 'wannads' ? ActivityType::Offerwall : ActivityType::Survey,
                 (string) $request->ip(),
-                $this->deviceType((string) $request->userAgent()),
+                OfferRequest::deviceTypeFor((string) $request->userAgent()),
             )
             : $manager->requestOffers(
                 $request->user(),
                 ActivityType::Survey,
                 (string) $request->ip(),
-                $this->deviceType((string) $request->userAgent()),
+                OfferRequest::deviceTypeFor((string) $request->userAgent()),
             );
 
         return response()->json([
@@ -113,7 +117,7 @@ class SurveyController extends Controller
     /**
      * The user opened a survey: record the attempt as its own transaction and hand back the entry URL.
      */
-    public function start(Request $request, AdProviderManager $manager, AdProviderRegistry $registry, ProviderIdentities $identities, ProviderComplianceGate $compliance): JsonResponse
+    public function start(Request $request, AdProviderManager $manager, AdProviderRegistry $registry, ProviderIdentities $identities, ProviderComplianceGate $compliance, WorkflowService $workflows, WorkflowLogger $logger): JsonResponse
     {
         $validated = $request->validate([
             'request_id' => ['required', 'integer'],
@@ -145,6 +149,25 @@ class SurveyController extends Controller
             ], 403);
         }
 
+        // A survey that is meant to unlock a quote belongs to the user's current run, and follows its rules
+        // (allowed providers, whether points are awarded). The run is looked up here, never taken from the page.
+        $workflow = null;
+
+        if (($validated['purpose'] ?? null) === GatePurpose::QuoteGeneration->value) {
+            // A run already in progress keeps its rules even if the flow has been switched off since.
+            $workflow = $workflows->activeFor($user);
+
+            $needsRun = $workflow !== null || QuoteWorkflowSetting::current()->enabled;
+
+            if ($needsRun && $workflow?->state !== WorkflowState::Survey) {
+                return response()->json(['message' => 'Start creating a quote first, then choose a survey.'], 409);
+            }
+
+            if ($workflow !== null && ! in_array($provider->key, (array) $workflow->rule('survey_provider_keys'), true)) {
+                return response()->json(['message' => 'This provider cannot be used to unlock a quote.'], 403);
+            }
+        }
+
         $offer = $manager->findOffer($adRequest, $validated['offer_identifier']);
 
         if ($offer === null) {
@@ -161,6 +184,7 @@ class SurveyController extends Controller
             'provider_user_id' => $identities->externalIdFor($user, $provider->key),
             'activity_type' => $activityType,
             'purpose' => $validated['purpose'] ?? null,
+            'quote_workflow_id' => $workflow?->id,
             'offer_identifier' => $offer->identifier,
             'offer_length_minutes' => $offer->lengthMinutes,
             'offer_category' => $offer->category,
@@ -173,6 +197,10 @@ class SurveyController extends Controller
 
         // Most surveys do not allow a second entry, so it must not be offered again.
         $manager->forgetOffer($adRequest, $offer->identifier);
+
+        if ($workflow !== null) {
+            $logger->log(WorkflowLogger::SURVEY, 'started', $workflow, ['provider' => $provider->key, 'activity' => $activity->id]);
+        }
 
         return response()->json([
             'activity_id' => $activity->id,
@@ -236,14 +264,5 @@ class SurveyController extends Controller
         }
 
         return Inertia::render('surveys/return', ['state' => $state, 'activityId' => $activityId]);
-    }
-
-    private function deviceType(string $userAgent): int
-    {
-        return match (true) {
-            preg_match('/iPad|Tablet|PlayBook|Silk/i', $userAgent) === 1 => OfferRequest::DEVICE_TABLET,
-            preg_match('/Mobi|Android|iPhone|iPod/i', $userAgent) === 1 => OfferRequest::DEVICE_PHONE,
-            default => OfferRequest::DEVICE_DESKTOP,
-        };
     }
 }

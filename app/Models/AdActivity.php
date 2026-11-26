@@ -28,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $provider_confirmed_at
  * @property Carbon|null $reward_credited_at
  * @property GatePurpose|null $purpose
+ * @property string|null $quote_workflow_id
  * @property Carbon|null $consumed_at
  * @property int|null $consumed_quote_id
  * @property array<string, mixed>|null $callback_payload
@@ -35,7 +36,7 @@ use Illuminate\Support\Carbon;
  * @property int $awarded_points
  */
 #[Fillable([
-    'user_id', 'ad_request_id', 'source', 'provider_key', 'provider_user_id', 'activity_type', 'purpose',
+    'user_id', 'ad_request_id', 'source', 'provider_key', 'provider_user_id', 'activity_type', 'purpose', 'quote_workflow_id',
     'consumed_at', 'consumed_quote_id', 'offer_identifier', 'offer_length_minutes', 'offer_category', 'provider_transaction_id',
     'status', 'reward_status', 'reward_note',
     'survey_loaded_at', 'survey_started_at', 'survey_returned_at', 'provider_confirmed_at', 'reward_credited_at',
@@ -75,6 +76,19 @@ class AdActivity extends Model
             'survey_outcome' => 'integer',
             'payout_type' => 'integer',
         ];
+    }
+
+    /**
+     * Whether a completion may earn points or a revenue share. Surveys done to unlock a quote only do when the
+     * rules of that run say so; every other survey always may.
+     */
+    public function earnsRewards(): bool
+    {
+        if ($this->quote_workflow_id === null) {
+            return true;
+        }
+
+        return QuoteWorkflow::query()->find($this->quote_workflow_id)?->rule('award_survey_points') === true;
     }
 
     /**

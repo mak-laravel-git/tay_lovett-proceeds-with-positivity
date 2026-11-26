@@ -1,8 +1,6 @@
 <?php
 
 use App\Ai\Agents\QuoteAgent;
-use App\Enums\GatePurpose;
-use App\Models\AdActivity;
 use App\Models\AdSession;
 use App\Models\AiBudgetCounter;
 use App\Models\AiModel;
@@ -11,6 +9,7 @@ use App\Models\AiSetting;
 use App\Models\LedgerEntry;
 use App\Models\Quote;
 use App\Models\QuoteCategory;
+use App\Models\QuoteWorkflowSetting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WithdrawalRequest;
@@ -119,8 +118,8 @@ test('generation is auto-approved and a missing token count still spends the res
 
     $user = User::factory()->create();
     $category = QuoteCategory::factory()->create();
-    // Quote generation is gated behind one completed survey.
-    AdActivity::factory()->for($user)->approved()->create(['purpose' => GatePurpose::QuoteGeneration]);
+    // One-step creation is what runs while the step-by-step flow is switched off.
+    QuoteWorkflowSetting::current()->update(['enabled' => false]);
 
     $this->actingAs($user)->post(route('studio.generate'), [
         'quote_category_id' => $category->id,

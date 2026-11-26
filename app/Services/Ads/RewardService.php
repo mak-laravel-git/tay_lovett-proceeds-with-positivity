@@ -34,6 +34,11 @@ class RewardService
             return $this->mark($activity, RewardStatus::NotEligible, 'missing_transaction_id');
         }
 
+        // A survey done to unlock a quote may be configured to earn nothing.
+        if (! $activity->earnsRewards()) {
+            return $this->mark($activity, RewardStatus::NotEligible, 'quote_workflow_no_points');
+        }
+
         $points = $this->rules->pointsFor($activity->provider_key, $activity->activity_type);
 
         if ($points === null) {

@@ -45,6 +45,7 @@ const statusTabs = [
     { value: 'published', label: 'Published' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'draft', label: 'Draft' },
+    { value: 'awaiting_unlock', label: 'Awaiting unlock' },
 ] as const;
 
 export default function AdminQuotes({
@@ -158,7 +159,10 @@ export default function AdminQuotes({
                                                 <div className="flex flex-wrap justify-end gap-1.5">
                                                     {quote.status ===
                                                         'pending_review' ||
-                                                    quote.status === 'draft' ? (
+                                                    quote.status === 'draft' ||
+                                                    // Releases a quote that is still waiting for its last workflow step.
+                                                    quote.status ===
+                                                        'awaiting_unlock' ? (
                                                         <Form
                                                             action={`/admin/quotes/${quote.slug}/approve`}
                                                             method="post"

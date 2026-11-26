@@ -48,7 +48,6 @@ class RewardController extends Controller
                 'reconciliation_tolerance_usd' => Micros::toDollars($settings->reconciliation_tolerance_micros),
                 'reconciliation_recheck_days' => $settings->reconciliation_recheck_days,
                 'offers_cache_seconds' => $settings->offers_cache_seconds,
-                'gate_quote_generation' => $settings->gate_quote_generation,
                 'user_revenue_share_enabled' => $settings->user_revenue_share_enabled,
             ],
             'timezones' => timezone_identifiers_list(),
@@ -119,7 +118,6 @@ class RewardController extends Controller
             'reconciliation_tolerance_usd' => ['required', 'string', 'max:20'],
             'reconciliation_recheck_days' => ['required', 'integer', 'min:0', 'max:14'],
             'offers_cache_seconds' => ['required', 'integer', 'min:30', 'max:3600'],
-            'gate_quote_generation' => ['sometimes', 'boolean'],
             'user_revenue_share_enabled' => ['sometimes', 'boolean'],
         ]);
 
@@ -143,10 +141,6 @@ class RewardController extends Controller
             'reconciliation_recheck_days' => $validated['reconciliation_recheck_days'],
             'offers_cache_seconds' => $validated['offers_cache_seconds'],
         ]);
-
-        if (array_key_exists('gate_quote_generation', $validated)) {
-            $settings->gate_quote_generation = $request->boolean('gate_quote_generation');
-        }
 
         if (array_key_exists('user_revenue_share_enabled', $validated)) {
             $settings->user_revenue_share_enabled = $request->boolean('user_revenue_share_enabled');

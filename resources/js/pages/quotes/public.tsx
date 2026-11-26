@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { Share2 } from 'lucide-react';
 import { useState } from 'react';
+import { DisplayAdSlot } from '@/components/ads/display-ad-slot';
 import { ShareDialog } from '@/components/share-dialog';
 import { Button } from '@/components/ui/button';
 
@@ -21,6 +22,7 @@ export default function PublicQuote({ quote }: { quote: PublicQuoteData }) {
                     <Share2 /> Share
                 </Button>
             </div>
+            <DisplayAdSlot location="public_quote_below" className="mt-10" />
             <ShareDialog quote={sharing} onClose={() => setSharing(null)} />
         </main>
     );

@@ -29,9 +29,11 @@ class QuoteRouter
     ) {}
 
     /**
-     * Generate an approved studio quote through one SDK call per eligible credential.
+     * Generate a studio quote through one SDK call per eligible credential.
+     *
+     * @param  QuoteStatus  $status  Approved by default; the workflow stores it as awaiting its last step.
      */
-    public function generate(User $user, QuoteCategory $category): Quote
+    public function generate(User $user, QuoteCategory $category, QuoteStatus $status = QuoteStatus::Approved): Quote
     {
         $settings = AiSetting::current();
 
@@ -87,7 +89,7 @@ class QuoteRouter
                     $category,
                     (string) ($response['text'] ?? ''),
                     $user->id,
-                    QuoteStatus::Approved,
+                    $status,
                 );
 
                 AiGenerationLog::query()->create([

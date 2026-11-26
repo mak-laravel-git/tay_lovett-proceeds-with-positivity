@@ -2,29 +2,28 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\GatePurpose;
 use App\Enums\QuoteStatus;
 use App\Models\Quote;
 use App\Models\QuoteCategory;
-use App\Services\Ads\AdGate;
+use App\Models\QuoteWorkflowSetting;
 use App\Services\QuoteModeration;
 use App\Services\QuoteRouter;
+use App\Services\QuoteWorkflow\WorkflowPresenter;
+use App\Services\QuoteWorkflow\WorkflowService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class StudioController extends Controller
 {
-    public function index(Request $request, AdGate $gate): Response
+    public function index(Request $request, WorkflowService $workflows, WorkflowPresenter $presenter): Response
     {
-        $purpose = GatePurpose::QuoteGeneration;
-
         $quotes = Quote::query()
             ->with('category')
             ->where('user_id', $request->user()->id)
+            // A quote still waiting for its last workflow step is never listed, so its text stays on the server.
             ->whereIn('status', [QuoteStatus::Approved, QuoteStatus::Published])
             ->latest()
             ->get()
@@ -35,56 +34,40 @@ class StudioController extends Controller
                 'status' => $quote->status->value,
             ]);
 
+        $rules = QuoteWorkflowSetting::current();
+        $active = $workflows->activeFor($request->user());
+
         return Inertia::render('studio/index', [
             'categories' => QuoteCategory::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'quotes' => $quotes,
-            'gate' => [
-                'purpose' => $purpose->value,
-                'enabled' => $gate->enabled($purpose),
-                'available' => $gate->available($request->user(), $purpose),
+            'workflow' => [
+                // A run that is already in progress is finished even if the flow has been switched off since.
+                'enabled' => $rules->enabled || $active !== null,
+                'active' => $active === null ? null : $presenter->present($active),
+                'disclosure' => $presenter->disclosure($active === null ? $rules->snapshot() : $active->settings_snapshot),
             ],
         ]);
     }
 
     /**
-     * A quote needs one completed (provider-confirmed) survey. The unlock is spent before generating and given
-     * back if generation fails, so a failure on our side never costs the user a survey.
+     * One-step creation, only available while the step-by-step flow is switched off. While it is on, this
+     * address is refused so the steps cannot be skipped.
      */
-    public function generate(Request $request, QuoteRouter $router, AdGate $gate): RedirectResponse
+    public function generate(Request $request, QuoteRouter $router): RedirectResponse
     {
+        if (QuoteWorkflowSetting::current()->enabled) {
+            throw ValidationException::withMessages([
+                'workflow' => 'Use the Create quote steps on this page.',
+            ]);
+        }
+
         $validated = $request->validate([
             'quote_category_id' => ['required', 'exists:quote_categories,id'],
         ]);
 
         $category = QuoteCategory::query()->whereKey($validated['quote_category_id'])->firstOrFail();
-        $user = $request->user();
-        $purpose = GatePurpose::QuoteGeneration;
 
-        $unlock = null;
-
-        if ($gate->enabled($purpose)) {
-            $unlock = $gate->claim($user, $purpose);
-
-            if ($unlock === null) {
-                throw ValidationException::withMessages([
-                    'ad_gate' => 'Complete a survey first to create a quote.',
-                ]);
-            }
-        }
-
-        try {
-            $quote = $router->generate($user, $category);
-        } catch (Throwable $exception) {
-            if ($unlock !== null) {
-                $gate->release($unlock);
-            }
-
-            throw $exception;
-        }
-
-        if ($unlock !== null) {
-            $gate->attach($unlock, $quote);
-        }
+        $router->generate($request->user(), $category);
 
         Inertia::flash('toast', [
             'type' => 'success',

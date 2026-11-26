@@ -30,11 +30,15 @@ class AdProviderManager
     public function __construct(
         private readonly AdProviderRegistry $registry,
         private readonly ProviderIdentities $identities,
+        private readonly ProviderComplianceGate $compliance,
     ) {}
 
-    public function requestOffers(User $user, ActivityType $type, string $ip, int $deviceType): OfferBundle
+    /**
+     * @param  list<string>|null  $onlyKeys  Limit the chain to these providers (still in priority order).
+     */
+    public function requestOffers(User $user, ActivityType $type, string $ip, int $deviceType, ?array $onlyKeys = null): OfferBundle
     {
-        return $this->runChain($user, $type, $ip, $deviceType, null);
+        return $this->runChain($user, $type, $ip, $deviceType, $onlyKeys);
     }
 
     /**
@@ -42,10 +46,13 @@ class AdProviderManager
      */
     public function requestOffersFrom(User $user, string $providerKey, ActivityType $type, string $ip, int $deviceType): OfferBundle
     {
-        return $this->runChain($user, $type, $ip, $deviceType, $providerKey);
+        return $this->runChain($user, $type, $ip, $deviceType, [$providerKey]);
     }
 
-    private function runChain(User $user, ActivityType $type, string $ip, int $deviceType, ?string $onlyKey): OfferBundle
+    /**
+     * @param  list<string>|null  $onlyKeys
+     */
+    private function runChain(User $user, ActivityType $type, string $ip, int $deviceType, ?array $onlyKeys): OfferBundle
     {
         $request = AdRequest::query()->create([
             'user_id' => $user->id,
@@ -59,8 +66,8 @@ class AdProviderManager
 
         $providers = AdProvider::query()->inFallbackOrder()->get();
 
-        if ($onlyKey !== null) {
-            $providers = $providers->where('key', $onlyKey)->values();
+        if ($onlyKeys !== null) {
+            $providers = $providers->whereIn('key', $onlyKeys)->values();
         }
 
         foreach ($providers as $provider) {
@@ -82,6 +89,14 @@ class AdProviderManager
 
             if (! $adapter->isConfigured($provider)) {
                 $this->record($request, $provider->key, 'fetch_offers', OfferResult::failed('not_configured'), $position, CallOutcome::Skipped);
+
+                continue;
+            }
+
+            // A provider the user is not allowed to launch must not win the chain: starting one of its offers
+            // would be refused, and the providers after it would never be asked.
+            if (! $this->compliance->launchState($provider, true)['can_launch']) {
+                $this->record($request, $provider->key, 'fetch_offers', OfferResult::failed('compliance_blocked'), $position, CallOutcome::Skipped);
 
                 continue;
             }
@@ -183,6 +198,7 @@ class AdProviderManager
             'http_status' => $result->httpStatus,
             'latency_ms' => $result->latencyMs,
             'error_category' => $result->errorCategory,
+            'response_excerpt' => $result->responseExcerpt,
             'position' => $position,
         ]);
     }

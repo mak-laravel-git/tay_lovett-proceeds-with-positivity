@@ -18,7 +18,14 @@ final readonly class OfferResult
         public ?int $httpStatus = null,
         public ?string $errorCategory = null,
         public ?int $latencyMs = null,
+        /** A redacted, shortened copy of the provider's answer, for the request log. */
+        public ?string $responseExcerpt = null,
     ) {}
+
+    public function withExcerpt(?string $excerpt): self
+    {
+        return new self($this->outcome, $this->offers, $this->httpStatus, $this->errorCategory, $this->latencyMs, $excerpt);
+    }
 
     /**
      * @param  list<Offer>  $offers

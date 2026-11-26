@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdController;
 use App\Http\Controllers\AdGateController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\Ads\ActivityController as AdsActivityController;
 use App\Http\Controllers\Admin\Ads\CallbackLogController as AdsCallbackLogController;
 use App\Http\Controllers\Admin\Ads\OverviewController as AdsOverviewController;
@@ -13,15 +14,21 @@ use App\Http\Controllers\Admin\AiManagementController;
 use App\Http\Controllers\Admin\AiPlaygroundController;
 use App\Http\Controllers\Admin\ApplicationSettingsController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\GoogleAds\PlacementController;
+use App\Http\Controllers\Admin\GoogleAds\SettingsController as GoogleAdsSettingsController;
 use App\Http\Controllers\Admin\LegalDocumentController;
 use App\Http\Controllers\Admin\MaintenanceController;
 use App\Http\Controllers\Admin\PeopleAccountController;
 use App\Http\Controllers\Admin\QuoteModerationController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\WithdrawalReviewController;
+use App\Http\Controllers\Admin\WorkflowRunController;
+use App\Http\Controllers\Admin\WorkflowSettingsController;
+use App\Http\Controllers\AdsTxtController;
 use App\Http\Controllers\FeedController;
 use App\Http\Controllers\PublicLegalController;
 use App\Http\Controllers\PublicQuoteController;
+use App\Http\Controllers\Studio\WorkflowController;
 use App\Http\Controllers\StudioController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\WalletController;
@@ -39,6 +46,7 @@ Route::get('/', function () {
 
 Route::get('privacy', [PublicLegalController::class, 'show'])->defaults('slug', 'privacy')->name('privacy');
 Route::get('terms', [PublicLegalController::class, 'show'])->defaults('slug', 'terms')->name('terms');
+Route::get('ads.txt', AdsTxtController::class)->name('ads.txt');
 Route::get('og/default.png', [PublicQuoteController::class, 'siteImage'])->name('site.og');
 Route::get('q/{quote}', [PublicQuoteController::class, 'show'])->name('quotes.public');
 Route::get('q/{quote}/og.png', [PublicQuoteController::class, 'image'])->name('quotes.og');
@@ -55,6 +63,16 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
     Route::get('saved', [FeedController::class, 'saved'])->name('saved');
     Route::get('studio', [StudioController::class, 'index'])->name('studio');
     Route::post('studio', [StudioController::class, 'generate'])->middleware('throttle:10,1')->name('studio.generate');
+    // The step-by-step "Create quote" flow. Each limit has its own prefix so the steps do not share one counter.
+    Route::prefix('studio/workflow')->name('studio.workflow.')->group(function () {
+        Route::post('/', [WorkflowController::class, 'store'])->middleware('throttle:20,1,workflow-start')->name('store');
+        Route::get('{workflow}', [WorkflowController::class, 'show'])->middleware('throttle:120,1,workflow-show')->name('show');
+        Route::post('{workflow}/ads/attempts', [WorkflowController::class, 'issueAd'])->middleware('throttle:20,1,workflow-ad')->name('ads.issue');
+        Route::post('{workflow}/ads/attempts/{attempt}/events', [WorkflowController::class, 'adEvent'])->middleware('throttle:80,1,workflow-event')->name('ads.event');
+        Route::post('{workflow}/survey/offers', [WorkflowController::class, 'offers'])->middleware('throttle:20,1,workflow-offers')->name('offers');
+        Route::post('{workflow}/generate', [WorkflowController::class, 'generate'])->middleware('throttle:10,1,workflow-generate')->name('generate');
+        Route::post('{workflow}/cancel', [WorkflowController::class, 'cancel'])->middleware('throttle:20,1,workflow-cancel')->name('cancel');
+    });
     Route::get('ads/gate/{purpose}', [AdGateController::class, 'show'])->name('ads.gate');
     // Local development only: a provider cannot reach 127.0.0.1, so a survey is completed through the real
     // callback pipeline from here. The route does not exist in any other environment.
@@ -134,6 +152,26 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
         Route::post('settings/{group}', [ApplicationSettingsController::class, 'update'])->name('settings.update');
         Route::post('settings/{group}/reset', [ApplicationSettingsController::class, 'reset'])->name('settings.reset');
 
+        // Quote workflow: rules and runs.
+        Route::get('workflow', [WorkflowSettingsController::class, 'index'])->name('workflow.settings');
+        Route::put('workflow', [WorkflowSettingsController::class, 'update'])->name('workflow.settings.update');
+        Route::post('workflow/reset', [WorkflowSettingsController::class, 'reset'])->name('workflow.settings.reset');
+        Route::get('workflow/runs', [WorkflowRunController::class, 'index'])->name('workflow.runs');
+        Route::get('workflow/runs/{workflow}', [WorkflowRunController::class, 'show'])->name('workflow.runs.show');
+        Route::post('workflow/runs/{workflow}/unlock', [WorkflowRunController::class, 'unlock'])->name('workflow.runs.unlock');
+        Route::post('workflow/runs/{workflow}/cancel', [WorkflowRunController::class, 'cancel'])->name('workflow.runs.cancel');
+
+        // Google ads: account settings and ad units (rewarded and regular).
+        Route::get('google-ads', [GoogleAdsSettingsController::class, 'index'])->name('google-ads.settings');
+        Route::put('google-ads', [GoogleAdsSettingsController::class, 'update'])->name('google-ads.settings.update');
+        Route::get('google-ads/placements', [PlacementController::class, 'index'])->name('google-ads.placements');
+        Route::post('google-ads/placements', [PlacementController::class, 'store'])->name('google-ads.placements.store');
+        Route::put('google-ads/placements/{placement}', [PlacementController::class, 'update'])->name('google-ads.placements.update');
+        Route::delete('google-ads/placements/{placement}', [PlacementController::class, 'destroy'])->name('google-ads.placements.destroy');
+
+        Route::get('logs/ads', [ActivityLogController::class, 'ads'])->name('logs.ads');
+        Route::get('logs/activity', [ActivityLogController::class, 'activity'])->name('logs.activity');
+
         // Ads & surveys: provider management, rewards, transaction log, monitoring and reconciliation.
         Route::prefix('ads')->name('ads.')->group(function () {
             Route::get('/', AdsOverviewController::class)->name('index');
@@ -141,6 +179,7 @@ Route::middleware(['auth', 'account.active', 'verified'])->group(function () {
             Route::put('providers/{provider}', [AdsProviderController::class, 'update'])->name('providers.update');
             Route::post('providers/{provider}/move', [AdsProviderController::class, 'move'])->name('providers.move');
             Route::post('providers/{provider}/test', [AdsProviderController::class, 'test'])->middleware('throttle:5,1')->name('providers.test');
+            Route::delete('providers/{provider}/credentials', [AdsProviderController::class, 'clearCredentials'])->name('providers.credentials.destroy');
             Route::get('rewards', [AdsRewardController::class, 'index'])->name('rewards');
             Route::post('rewards', [AdsRewardController::class, 'store'])->name('rewards.store');
             Route::put('rewards/settings', [AdsRewardController::class, 'updateSettings'])->name('rewards.settings');
