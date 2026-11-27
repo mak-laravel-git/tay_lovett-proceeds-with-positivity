@@ -7,12 +7,15 @@ export function LegalDocument({
     title,
     placeholder = false,
     updatedAt = null,
+    framed = true,
     children,
 }: {
     title: string;
     /** True while the page still shows the built-in starter text. */
     placeholder?: boolean;
     updatedAt?: string | null;
+    /** Turn off when the content brings its own cards. */
+    framed?: boolean;
     children: React.ReactNode;
 }) {
     const { site } = usePage().props;
@@ -52,7 +55,13 @@ export function LegalDocument({
                             by a lawyer.
                         </p>
                     ) : null}
-                    <div className="mt-6 rounded-2xl border bg-white p-7 leading-7 text-muted-ink">
+                    <div
+                        className={
+                            framed
+                                ? 'mt-6 rounded-2xl border bg-white p-7 leading-7 text-muted-ink'
+                                : 'mt-6 leading-7 text-muted-ink'
+                        }
+                    >
                         {children}
                     </div>
                     <Link

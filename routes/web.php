@@ -46,6 +46,7 @@ Route::get('/', function () {
 
 Route::get('privacy', [PublicLegalController::class, 'show'])->defaults('slug', 'privacy')->name('privacy');
 Route::get('terms', [PublicLegalController::class, 'show'])->defaults('slug', 'terms')->name('terms');
+Route::inertia('how-to-use', 'help/how-to-use')->name('how-to-use');
 Route::get('ads.txt', AdsTxtController::class)->name('ads.txt');
 Route::get('og/default.png', [PublicQuoteController::class, 'siteImage'])->name('site.og');
 Route::get('q/{quote}', [PublicQuoteController::class, 'show'])->name('quotes.public');

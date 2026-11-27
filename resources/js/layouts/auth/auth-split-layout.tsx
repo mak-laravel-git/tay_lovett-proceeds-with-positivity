@@ -126,6 +126,17 @@ export default function AuthSplitLayout({
                 </motion.div>
 
                 <p className="text-center text-[13px] text-mist-dim">
+                    {showTabs && (
+                        <>
+                            <Link
+                                className="text-sky underline"
+                                href="/how-to-use"
+                            >
+                                How to Use
+                            </Link>
+                            {' · '}
+                        </>
+                    )}
                     <Link className="text-sky underline" href="/privacy">
                         Privacy Policy
                     </Link>

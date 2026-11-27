@@ -20,6 +20,7 @@ void createInertiaApp({
             case name === 'welcome':
             case name === 'maintenance':
             case name.startsWith('legal/'):
+            case name.startsWith('help/'):
             case name.startsWith('ads/'):
             case name.startsWith('quotes/'):
             // The survey return page is shown inside the in-app survey frame, so it carries no app chrome.
