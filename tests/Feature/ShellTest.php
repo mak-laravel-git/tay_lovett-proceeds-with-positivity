@@ -12,6 +12,12 @@ test('privacy and terms are public placeholders', function () {
         ->assertInertia(fn ($page) => $page->component('legal/show'));
 });
 
+test('the how to use page is public', function () {
+    $this->get(route('how-to-use'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('help/how-to-use'));
+});
+
 test('a user still cannot open an admin page', function () {
     $user = User::factory()->create();
 
